@@ -719,10 +719,10 @@ textarea{resize:vertical;min-height:68px}
   <div class="login-card">
     <span class="login-pig">🐷</span>
     <div class="login-title">Chanchito</div>
-    <div class="login-name">El portal de finanzas de Rocío y Agustín</div>
+    <div class="login-name">Tu portal personal de finanzas 🐷</div>
     <div class="login-group">
       <label class="login-label">Usuario</label>
-      <input class="login-input" id="lu" placeholder="rocio / agustin" autocomplete="off">
+      <input class="login-input" id="lu" placeholder="tu usuario" autocomplete="off">
     </div>
     <div class="login-group">
       <label class="login-label">Contraseña</label>
@@ -730,10 +730,7 @@ textarea{resize:vertical;min-height:68px}
     </div>
     <div class="login-error" id="lerr">❌ Usuario o contraseña incorrectos</div>
     <button class="login-btn" onclick="doLogin()">Entrar al chanchito 🐷</button>
-    <div class="login-hint">
-      Usuarios de prueba:<br>
-      <kbd>rocio</kbd> / <kbd>1234</kbd> &nbsp;·&nbsp; <kbd>agustin</kbd> / <kbd>1234</kbd>
-    </div>
+
   </div>
 </div>
 
@@ -792,7 +789,7 @@ textarea{resize:vertical;min-height:68px}
   <div class="topbar">
     <div>
       <div class="topbar-title" id="ttitle">Dashboard</div>
-      <span class="topbar-sub" id="tsub">Abril 2026 · Rocío Pardo</span>
+      <span class="topbar-sub" id="tsub">Abril 2026 · Rocío</span>
     </div>
     <div class="topbar-actions">
       <select class="form-sel" id="mes-sel">
@@ -868,10 +865,9 @@ textarea{resize:vertical;min-height:68px}
 
   <!-- ════ INGRESOS ════ -->
   <div class="page" id="pg-ingresos">
-    <div class="metrics-grid" style="grid-template-columns:repeat(3,1fr)">
-      <div class="metric-card"><div class="metric-label">Ingreso Rocío</div><div class="metric-value green">$200.000</div><div class="metric-delta delta-neutral">Sueldo mensual</div></div>
-      <div class="metric-card"><div class="metric-label">Ingreso Agustín</div><div class="metric-value blue">$280.000</div><div class="metric-delta delta-neutral">Sueldo + freelance</div></div>
-      <div class="metric-card"><div class="metric-label">Total combinado</div><div class="metric-value orange">$480.000</div><div class="metric-delta delta-up">↑ 8% vs anterior</div></div>
+    <div class="metrics-grid" style="grid-template-columns:repeat(2,1fr)">
+      <div class="metric-card"><div class="metric-label">Mis ingresos del mes</div><div class="metric-value green">$200.000</div><div class="metric-delta delta-neutral">Sueldo mensual</div></div>
+      <div class="metric-card"><div class="metric-label">Total del mes</div><div class="metric-value orange">$200.000</div><div class="metric-delta delta-up">Datos desde Sheets</div></div>
     </div>
     <div class="card">
       <div class="card-hd"><div class="card-title">Ingresos — Abril 2026</div><button class="btn btn-primary btn-sm">＋ Nuevo ingreso</button></div>
@@ -879,8 +875,7 @@ textarea{resize:vertical;min-height:68px}
         <thead><tr><th>Fecha</th><th>Descripción</th><th>Persona</th><th>Tipo</th><th>Recurrente</th><th style="text-align:right">Monto</th></tr></thead>
         <tbody>
           <tr><td>01/04</td><td><strong>Sueldo mensual</strong></td><td><span class="badge badge-orange">Rocío</span></td><td><span class="badge badge-blue">Fijo</span></td><td><span class="badge badge-green">Sí</span></td><td class="mono amt-pos" style="text-align:right">+$200.000</td></tr>
-          <tr><td>01/04</td><td><strong>Sueldo mensual</strong></td><td><span class="badge badge-blue">Agustín</span></td><td><span class="badge badge-blue">Fijo</span></td><td><span class="badge badge-green">Sí</span></td><td class="mono amt-pos" style="text-align:right">+$250.000</td></tr>
-          <tr><td>14/04</td><td><strong>Freelance diseño</strong></td><td><span class="badge badge-blue">Agustín</span></td><td><span class="badge badge-amber">Variable</span></td><td><span class="badge badge-red">No</span></td><td class="mono amt-pos" style="text-align:right">+$30.000</td></tr>
+
         </tbody>
       </table></div>
     </div>
@@ -996,13 +991,12 @@ textarea{resize:vertical;min-height:68px}
         <div class="fg"><label class="fl">Asignado a</label>
           <select class="fs" id="f-asig" onchange="toggleCustomPct()">
             <option value="rocio">Rocío</option>
-            <option value="agustin">Agustín</option>
             <option value="compartido">Compartido (50/50)</option>
             <option value="custom">Compartido (personalizado)</option>
           </select>
         </div>
         <div class="fg" id="custom-pct-group" style="display:none">
-          <label class="fl">% Rocío / Agustín</label>
+          <label class="fl">% Rocío / Compartido</label>
           <div style="display:flex;gap:7px;align-items:center">
             <input class="fi" id="pct-r" type="number" value="50" style="width:70px" oninput="syncPct('r')">%
             <span style="color:var(--text3)">·</span>
@@ -1336,7 +1330,7 @@ textarea{resize:vertical;min-height:68px}
             <input class="tf-inp" id="itf-cat" value="Sin categoría"></div>
           <div class="tf-box"><div class="tf-lbl">Asignado a por defecto</div>
             <select class="tf-sel" id="itf-asig">
-              <option>Rocío</option><option>Agustín</option><option>Compartido</option>
+              <option>Rocío</option><option>Compartido</option>
             </select></div>
           <div class="tf-box"><div class="tf-lbl">Separador decimal</div>
             <select class="tf-sel" id="itf-dec">
@@ -1429,7 +1423,9 @@ textarea{resize:vertical;min-height:68px}
 
 <script>
 // ══════ STATE ══════
-const USERS_DB = { rocio: '1234', agustin: '1234' };
+// Credenciales del portal — cambiá la contraseña antes de publicar
+// Para crear otro portal, duplicar este archivo y cambiar el usuario y contraseña
+const USERS_DB = { rocio: '1234' };
 let currentUser = null;
 
 // ══════════════════════════════════════════════════════
@@ -1485,7 +1481,7 @@ let CFG = {
     {name:'Educación',color:'#0e8a7a',icon:'📚'},
   ],
   medios: ['Efectivo','Débito Santander','Crédito Visa','Naranja X','Mercado Pago','Transferencia'],
-  users: ['Rocío','Agustín'],
+  users: ['Rocío'],
 };
 
 // Cargar config guardada (solo config, NUNCA datos financieros)
@@ -1534,10 +1530,10 @@ async function doLogin(){
     document.getElementById('login-screen').style.display='none';
     const app=document.getElementById('app');
     app.style.display='flex';
-    const nm = u==='rocio'?'Rocío':'Agustín';
+    const nm = 'Rocío';
     document.getElementById('uname').textContent=nm;
-    document.getElementById('uavatar').textContent=u==='rocio'?'RO':'AG';
-    document.getElementById('uavatar').style.background=u==='rocio'?'var(--accent)':'var(--blue)';
+    document.getElementById('uavatar').textContent='RO';
+    document.getElementById('uavatar').style.background='var(--accent)';
     initAll();
     // Traer datos frescos de Sheets (fuente de verdad)
     await loadFromSheets();
@@ -1707,7 +1703,7 @@ function getCatColor(cat){
 }
 function badgeFor(asig){
   if(asig==='Rocío'||asig==='rocio') return '<span class="badge badge-orange">Rocío</span>';
-  if(asig==='Agustín'||asig==='agustin') return '<span class="badge badge-blue">Agustín</span>';
+  if(asig&&asig.toLowerCase().includes('agust')) return `<span class="badge badge-blue">${asig}</span>`;
   return '<span class="badge badge-gray">Compartido</span>';
 }
 function renderGastos(filter='todos', catFilter=''){
