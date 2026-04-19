@@ -640,9 +640,9 @@ textarea{resize:vertical;min-height:68px}
 .cal-mes-num{ font-size:14px;font-weight:700;color:var(--text); }
 .cal-mes-name{ font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px; }
 
-/* Modal */
-#modal-overlay{ display:flex!important; }
-#modal-overlay[style*="display:none"]{ display:none!important; }
+/* Modal — NO usar !important, dejar que el JS controle display */
+#modal-overlay{ display:none; }
+#modal-overlay.open{ display:flex; }
 
 /* ─── IMPORTAR / EXPORTAR ─── */
 .imp-steps{display:flex;gap:0;margin-bottom:28px;position:relative}
@@ -806,10 +806,10 @@ textarea{resize:vertical;min-height:68px}
   <!-- ════ DASHBOARD ════ -->
   <div class="page active" id="pg-dashboard">
     <div class="metrics-grid">
-      <div class="metric-card"><div class="metric-label">Ingresos del mes</div><div class="metric-value blue">$200.000</div><div class="metric-delta delta-up">↑ 0% vs mes anterior</div></div>
-      <div class="metric-card"><div class="metric-label">Gastos del mes</div><div class="metric-value red" id="m-gastos">$148.200</div><div class="metric-delta delta-down">74% del ingreso</div></div>
-      <div class="metric-card"><div class="metric-label">Balance neto</div><div class="metric-value green" id="m-balance">$51.800</div><div class="metric-delta delta-neutral">Disponible</div></div>
-      <div class="metric-card"><div class="metric-label">Cuotas activas</div><div class="metric-value orange">$43.000</div><div class="metric-delta delta-neutral">Próx. 3 meses</div></div>
+      <div class="metric-card"><div class="metric-label">Ingresos del mes</div><div class="metric-value blue" id="m-ingresos">—</div><div class="metric-delta delta-neutral" id="m-ingresos-delta">Cargando...</div></div>
+      <div class="metric-card"><div class="metric-label">Gastos del mes</div><div class="metric-value red" id="m-gastos">—</div><div class="metric-delta delta-neutral" id="m-gastos-delta">Cargando...</div></div>
+      <div class="metric-card"><div class="metric-label">Balance neto</div><div class="metric-value green" id="m-balance">—</div><div class="metric-delta delta-neutral" id="m-balance-delta">Disponible</div></div>
+      <div class="metric-card"><div class="metric-label">Cuotas activas</div><div class="metric-value orange" id="m-cuotas">—</div><div class="metric-delta delta-neutral">Próx. 3 meses</div></div>
     </div>
     <div class="row2">
       <div class="card">
@@ -866,16 +866,15 @@ textarea{resize:vertical;min-height:68px}
   <!-- ════ INGRESOS ════ -->
   <div class="page" id="pg-ingresos">
     <div class="metrics-grid" style="grid-template-columns:repeat(2,1fr)">
-      <div class="metric-card"><div class="metric-label">Mis ingresos del mes</div><div class="metric-value green">$200.000</div><div class="metric-delta delta-neutral">Sueldo mensual</div></div>
-      <div class="metric-card"><div class="metric-label">Total del mes</div><div class="metric-value orange">$200.000</div><div class="metric-delta delta-up">Datos desde Sheets</div></div>
+      <div class="metric-card"><div class="metric-label">Mis ingresos del mes</div><div class="metric-value green" id="ing-total">—</div><div class="metric-delta delta-neutral" id="ing-delta">Sincronizando...</div></div>
+      <div class="metric-card"><div class="metric-label">Movimientos</div><div class="metric-value orange" id="ing-count">—</div><div class="metric-delta delta-neutral">este mes</div></div>
     </div>
     <div class="card">
       <div class="card-hd"><div class="card-title">Ingresos — Abril 2026</div><button class="btn btn-primary btn-sm">＋ Nuevo ingreso</button></div>
       <div class="tbl-wrap"><table>
-        <thead><tr><th>Fecha</th><th>Descripción</th><th>Persona</th><th>Tipo</th><th>Recurrente</th><th style="text-align:right">Monto</th></tr></thead>
-        <tbody>
-          <tr><td>01/04</td><td><strong>Sueldo mensual</strong></td><td><span class="badge badge-orange">Rocío</span></td><td><span class="badge badge-blue">Fijo</span></td><td><span class="badge badge-green">Sí</span></td><td class="mono amt-pos" style="text-align:right">+$200.000</td></tr>
-
+        <thead><tr><th>Fecha</th><th>Descripción</th><th>Categoría</th><th>Tipo</th><th>Recurrente</th><th style="text-align:right">Monto</th><th></th></tr></thead>
+        <tbody id="tbody-ingresos">
+          <tr><td colspan="7" style="text-align:center;padding:20px;color:var(--text3);font-size:12px">Sincronizando con Sheets...</td></tr>
         </tbody>
       </table></div>
     </div>
@@ -891,10 +890,10 @@ textarea{resize:vertical;min-height:68px}
       <button class="btn btn-ghost btn-sm" onclick="toggleEditPresup()">✏ Editar límites</button>
     </div>
     <div class="metrics-grid" style="margin-bottom:16px">
-      <div class="metric-card"><div class="metric-label">Presupuesto total</div><div class="metric-value green">$190.000</div><div class="metric-delta delta-neutral">Límite mensual</div></div>
-      <div class="metric-card"><div class="metric-label">Gastado</div><div class="metric-value red">$148.200</div><div class="metric-delta delta-down">78% del límite</div></div>
-      <div class="metric-card"><div class="metric-label">Disponible</div><div class="metric-value blue">$41.800</div><div class="metric-delta delta-up">22% restante</div></div>
-      <div class="metric-card"><div class="metric-label">Alertas</div><div class="metric-value amber">2</div><div class="metric-delta delta-neutral">Categorías en rojo</div></div>
+      <div class="metric-card"><div class="metric-label">Presupuesto total</div><div class="metric-value green" id="presup-total">—</div><div class="metric-delta delta-neutral">Límite mensual</div></div>
+      <div class="metric-card"><div class="metric-label">Gastado</div><div class="metric-value red" id="presup-gastado">—</div><div class="metric-delta delta-neutral" id="presup-pct-lbl">del límite</div></div>
+      <div class="metric-card"><div class="metric-label">Disponible</div><div class="metric-value blue" id="presup-disponible">—</div><div class="metric-delta delta-neutral" id="presup-disp-pct">restante</div></div>
+      <div class="metric-card"><div class="metric-label">Alertas</div><div class="metric-value amber" id="presup-alertas">—</div><div class="metric-delta delta-neutral">Categorías en rojo</div></div>
     </div>
     <div style="margin-bottom:14px">
       <div style="position:relative;height:200px"><canvas id="ch-presup" role="img" aria-label="Presupuesto por categoría">Presupuesto</canvas></div>
@@ -1014,6 +1013,7 @@ textarea{resize:vertical;min-height:68px}
           </select>
         </div>
         <div class="fg full"><label class="fl">Notas</label><textarea class="fi" id="f-notas" placeholder="Aclaración adicional..."></textarea></div>
+          <input type="hidden" id="f-edit-id" value="">
       </div>
       <div class="cuota-preview" id="cuota-preview">
         <div class="cp-title">📅 Impacto en meses siguientes</div>
@@ -1200,7 +1200,8 @@ textarea{resize:vertical;min-height:68px}
     <!-- MODAL AGREGAR PAGO -->
     <div id="modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:500;align-items:center;justify-content:center">
       <div style="background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:28px 28px 24px;width:420px;box-shadow:0 20px 60px rgba(0,0,0,.15)">
-        <div style="font-size:15px;font-weight:700;margin-bottom:18px;letter-spacing:-.3px">Nuevo pago fijo</div>
+        <div style="font-size:15px;font-weight:700;margin-bottom:18px;letter-spacing:-.3px" id="modal-title">Nuevo pago fijo</div>
+        <input type="hidden" id="modal-edit-id" value="">
         <div class="form-grid" style="gap:12px">
           <div class="fg full"><label class="fl">Nombre del pago</label><input class="fi" id="np-nombre" placeholder="Ej: Expensas, ABL, Netflix..."></div>
           <div class="fg"><label class="fl">Ícono / emoji</label><input class="fi" id="np-icon" placeholder="🏠" maxlength="4" style="font-size:20px;text-align:center"></div>
@@ -1469,42 +1470,23 @@ async function sheetsWrite(action, payload = {}) {
   return res.json();
 }
 
-let CFG = {
-  cats: [
-    {name:'Alimentos',color:'#1a6fb5',icon:'🛒'},
-    {name:'Transporte',color:'#1a9e5c',icon:'🚌'},
-    {name:'Servicios',color:'#7c3aed',icon:'💡'},
-    {name:'Hogar',color:'#0e8a7a',icon:'🏠'},
-    {name:'Salud',color:'#d63a3a',icon:'💊'},
-    {name:'Ocio',color:'#c07a0a',icon:'🎭'},
-    {name:'Ropa',color:'#e85d26',icon:'👗'},
-    {name:'Educación',color:'#0e8a7a',icon:'📚'},
-  ],
-  medios: ['Efectivo','Débito Santander','Crédito Visa','Naranja X','Mercado Pago','Transferencia'],
-  users: ['Rocío'],
-};
-
-// Cargar config guardada (solo config, NUNCA datos financieros)
-try {
-  const saved = localStorage.getItem('chanchito_cfg_v2');
-  if (saved) { const p = JSON.parse(saved); if(p.cats) CFG = p; }
-} catch(e) {}
+// CFG se carga desde Sheets — fuente de verdad 100%
+let CFG = { cats: [], medios: [], users: ['Rocío'] };
 
 function saveCfg() {
-  try { localStorage.setItem('chanchito_cfg_v2', JSON.stringify(CFG)); } catch(e){}
+  // Guardar categorías y medios en Sheets
+  sheetsWrite('saveCategorias', {
+    data: CFG.cats.map(c=>({nombre:c.name,color:c.color,icon:c.icon,archivado:c.archivado||false}))
+  }).catch(e=>console.error('saveCategorias error:',e));
+  sheetsWrite('saveMedios', {
+    data: CFG.medios.map(m=>({nombre:m}))
+  }).catch(e=>console.error('saveMedios error:',e));
 }
 
 // GASTOS_CACHE se llena desde Sheets al hacer login/sync — NO hay datos hardcodeados
 
-const PRESUP_BASE = [
-  {cat:'Alimentos',gasto:85000,limite:100000},
-  {cat:'Servicios',gasto:52000,limite:60000},
-  {cat:'Transporte',gasto:38000,limite:40000},
-  {cat:'Ocio',gasto:28000,limite:25000},
-  {cat:'Cuotas',gasto:45000,limite:50000},
-  {cat:'Salud',gasto:18000,limite:30000},
-  {cat:'Hogar',gasto:43000,limite:40000},
-];
+// PRESUP_BASE se carga desde Sheets
+let PRESUP_BASE = [];
 
 let eventosIngresos = [
   {desc:'Aguinaldo',monto:200000,mes:6,tipo:'Aguinaldo',icon:'💰'},
@@ -1579,15 +1561,14 @@ function initAll(){
   initCharts();
 }
 
-// ══════ LOAD FROM SHEETS ══════
+// ══════ LOAD FROM SHEETS — carga TODO desde Sheets ══════
 async function loadFromSheets(silent=false){
   const dot=document.getElementById('sync-dot');
   const time=document.getElementById('sync-time');
   dot.style.background='var(--amber)';
-  time.textContent='Cargando desde Sheets...';
-  if(!silent) toast('🐷 Conectando con Google Sheets...','info');
+  time.textContent='Cargando...';
+  if(!silent) toast('🐷 Sincronizando con Google Sheets...','info');
 
-  // Usar getScriptUrl() que lee localStorage — NO la constante hardcodeada
   const effectiveUrl = getScriptUrl();
   if(!effectiveUrl || effectiveUrl === 'TU_APPS_SCRIPT_URL_AQUI'){
     dot.style.background='var(--amber)';
@@ -1597,62 +1578,200 @@ async function loadFromSheets(silent=false){
   }
 
   try {
-    // Leer gastos
-    const respG = await sheetsAPI('getGastos', { user: currentUser });
+    // Cargar todo en paralelo
+    const [respG, respI, respCat, respMed, respPresup, respPF, respCal] = await Promise.all([
+      sheetsAPI('getGastos'),
+      sheetsAPI('getIngresos'),
+      sheetsAPI('getCategorias'),
+      sheetsAPI('getMedios'),
+      sheetsAPI('getPresupuesto'),
+      sheetsAPI('getPagosFijos'),
+      sheetsAPI('getCalendario'),
+    ]);
+
+    // Gastos
     if(respG.ok){
-      // Normalizar: convertir monto a negativo si viene positivo desde Sheets
-      GASTOS_CACHE = respG.data.map(r => ({
-        id:     r.id || '',
+      GASTOS_CACHE = respG.data.map(r=>({
+        id:     r.id||'',
         fecha:  r.fecha,
         desc:   r.descripcion,
         cat:    r.categoria,
         medio:  r.medio_pago,
         asig:   r.asignado_a,
-        cuotas: r.cuota_actual && r.total_cuotas ? `${r.cuota_actual}/${r.total_cuotas}` : '—',
-        monto:  -Math.abs(parseFloat(r.monto || 0)),
-        notas:  r.notas || '',
+        cuotas: r.cuota_actual&&r.total_cuotas?`${r.cuota_actual}/${r.total_cuotas}`:'—',
+        monto:  Math.abs(parseFloat(r.monto||0)),
+        notas:  r.notas||'',
         raw:    r
       }));
     }
 
-    // Leer ingresos
-    const respI = await sheetsAPI('getIngresos', { user: currentUser });
+    // Ingresos
     if(respI.ok){ INGRESOS_CACHE = respI.data; }
 
-    // Actualizar UI con datos frescos
+    // Categorías
+    if(respCat.ok && respCat.data.length){
+      CFG.cats = respCat.data.map(r=>({
+        name:     r.nombre||r.name||'',
+        color:    r.color||'#888',
+        icon:     r.icon||'📦',
+        archivado:String(r.archivado||'').toUpperCase()==='SI'
+      })).filter(c=>c.name);
+      fillSelects();
+    }
+
+    // Medios de pago
+    if(respMed.ok && respMed.data.length){
+      CFG.medios = respMed.data.map(r=>r.nombre||r).filter(Boolean);
+      fillSelects();
+    }
+
+    // Presupuesto
+    if(respPresup.ok && respPresup.data.length){
+      PRESUP_BASE = respPresup.data.map(r=>({
+        cat:    r.categoria||r.cat||'',
+        limite: parseFloat(r.limite)||0,
+        gasto:  0 // se calcula desde GASTOS_CACHE
+      }));
+    }
+
+    // Pagos fijos
+    if(respPF.ok && respPF.data.length){
+      PAGOS_FIJOS = respPF.data.map(r=>({
+        id:       parseInt(r.id)||0,
+        nombre:   r.nombre||'',
+        icon:     r.icon||'💳',
+        monto:    parseFloat(r.monto)||0,
+        medio:    r.medio||'',
+        desde:    parseInt(r.desde)||1,
+        hasta:    parseInt(r.hasta)||12,
+        notas:    r.notas||'',
+        archivado:String(r.archivado||'').toUpperCase()==='SI'
+      }));
+      ARCHIVADOS = new Set(PAGOS_FIJOS.filter(p=>p.archivado).map(p=>p.id));
+    }
+
+    // Estado calendario (checkboxes)
+    if(respCal.ok){
+      ESTADO_PAGOS = {};
+      respCal.data.forEach(r=>{
+        const pid = r.pago_id||r['pago_id']||'';
+        const anio= r.año||r.ano||r.anio||'';
+        const mes = r.mes||'';
+        const key = `${pid}_${anio}_${mes}`;
+        ESTADO_PAGOS[key] = String(r.pagado||'').toUpperCase()==='SI';
+      });
+    }
+
+    // Actualizar toda la UI
     renderGastos();
+    renderConfig();
+    renderPresupuesto();
+    renderCalendario();
     updateDashboardMetrics();
+
     lastSyncTime = new Date();
     dot.style.background='var(--green)';
     time.textContent=`Sync: ${lastSyncTime.getHours()}:${String(lastSyncTime.getMinutes()).padStart(2,'0')}`;
-    if(!silent) toast('✓ Datos actualizados desde Google Sheets','success');
+    if(!silent) toast('✓ Todo actualizado desde Google Sheets','success');
 
   } catch(err){
     dot.style.background='var(--red)';
     time.textContent='Error de conexión';
-    toast('❌ No se pudo conectar con Sheets: ' + err.message,'error');
-    console.error('Sheets error:', err);
+    toast('❌ No se pudo conectar: '+err.message,'error');
+    console.error('Sheets error:',err);
   }
 }
 
 function updateDashboardMetrics(){
-  const mesActual = new Date().getMonth() + 1;
+  const mesActual  = new Date().getMonth()+1;
   const anioActual = new Date().getFullYear();
-  const gastosDelMes = GASTOS_CACHE.filter(g => {
-    const [d,m,a] = g.fecha.split('/');
-    return parseInt(m)===mesActual && parseInt(a)===anioActual;
+
+  // ── Gastos del mes
+  const gastosDelMes = GASTOS_CACHE.filter(g=>{
+    const p=String(g.fecha||'').split('/');
+    return parseInt(p[1])===mesActual && parseInt(p[2])===anioActual;
   });
-  const totalGastos = gastosDelMes.reduce((s,g)=>s+g.monto,0);
+  const totalGastos = gastosDelMes.reduce((s,g)=>s+(g.monto||0),0);
+
+  // ── Ingresos del mes
   const ingresosDelMes = INGRESOS_CACHE.filter(i=>{
-    const [d,m,a] = (i.fecha||'').split('/');
-    return parseInt(m)===mesActual && parseInt(a)===anioActual;
+    const p=String(i.fecha||'').split('/');
+    return parseInt(p[1])===mesActual && parseInt(p[2])===anioActual;
   });
   const totalIngresos = ingresosDelMes.reduce((s,i)=>s+parseFloat(i.monto||0),0);
-  const balance = totalIngresos + totalGastos; // gastos ya son negativos
-  const elG = document.getElementById('m-gastos');
-  const elB = document.getElementById('m-balance');
-  if(elG) elG.textContent = '$'+Math.abs(totalGastos).toLocaleString('es-AR');
-  if(elB) elB.textContent = '$'+balance.toLocaleString('es-AR');
+
+  // ── Balance
+  const balance = totalIngresos - totalGastos;
+
+  // ── Cuotas activas: gastos con cuota_actual que no son la última
+  const cuotasActivas = GASTOS_CACHE.filter(g=>{
+    const ca=parseInt(g.cuota_actual||g.cuotaActual||0);
+    const ct=parseInt(g.total_cuotas||g.totalCuotas||0);
+    return ca>0 && ct>0 && ca<ct;
+  });
+  const totalCuotas = cuotasActivas.reduce((s,g)=>s+(g.monto||0),0);
+
+  // ── Pct gastos/ingresos
+  const pctGastos = totalIngresos>0 ? Math.round(totalGastos/totalIngresos*100) : 0;
+
+  // Dashboard
+  const set = (id,val)=>{ const el=document.getElementById(id); if(el) el.textContent=val; };
+  set('m-ingresos',  '$'+totalIngresos.toLocaleString('es-AR'));
+  set('m-gastos',    '$'+totalGastos.toLocaleString('es-AR'));
+  set('m-balance',   '$'+balance.toLocaleString('es-AR'));
+  set('m-cuotas',    '$'+totalCuotas.toLocaleString('es-AR'));
+  set('m-ingresos-delta', ingresosDelMes.length+' movimiento'+(ingresosDelMes.length!==1?'s':''));
+  set('m-gastos-delta',   pctGastos+'% del ingreso');
+  set('m-balance-delta',  balance>=0?'Superávit':'Déficit');
+
+  // Ingresos page
+  set('ing-total',  '$'+totalIngresos.toLocaleString('es-AR'));
+  set('ing-count',  ingresosDelMes.length+' movimiento'+(ingresosDelMes.length!==1?'s':''));
+  set('ing-delta',  'Abril '+anioActual);
+
+  // Tabla de ingresos
+  const tbodyIng = document.getElementById('tbody-ingresos');
+  if(tbodyIng){
+    if(!ingresosDelMes.length){
+      tbodyIng.innerHTML='<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text3);font-size:12px">Sin ingresos registrados este mes en Sheets</td></tr>';
+    } else {
+      tbodyIng.innerHTML = ingresosDelMes.map(i=>`<tr>
+        <td>${i.fecha||'—'}</td>
+        <td><strong>${i.descripcion||i.desc||'—'}</strong></td>
+        <td><span class="badge badge-orange">${i.categoria||i.persona||'—'}</span></td>
+        <td><span class="badge badge-blue">${i.tipo||'Fijo'}</span></td>
+        <td><span class="badge ${i.recurrente==='Sí'||i.recurrente==='Si'?'badge-green':'badge-red'}">${i.recurrente||'—'}</span></td>
+        <td class="mono amt-pos" style="text-align:right">+$${parseFloat(i.monto||0).toLocaleString('es-AR')}</td>
+        <td style="white-space:nowrap">
+          <button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:2px 4px" title="Editar" onclick="openEditIngreso('${i.id}')">✏</button>
+          <button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:2px 4px" title="Eliminar" onclick="delIngresoUI('${i.id}')">🗑</button>
+        </td>
+      </tr>`).join('');
+    }
+  }
+
+  // Presupuesto metrics
+  const limiteTotal = PRESUP_BASE.reduce((s,p)=>s+p.limite,0);
+  const pctPresup   = limiteTotal>0?Math.round(totalGastos/limiteTotal*100):0;
+  const disponible  = limiteTotal - totalGastos;
+  const alertas     = PRESUP_BASE.filter(p=>{ const g=gastosDelMes.filter(x=>(x.cat||x.categoria)===p.cat).reduce((s,x)=>s+x.monto,0); return g>p.limite; }).length;
+  set('presup-total',     '$'+limiteTotal.toLocaleString('es-AR'));
+  set('presup-gastado',   '$'+totalGastos.toLocaleString('es-AR'));
+  set('presup-disponible','$'+Math.max(0,disponible).toLocaleString('es-AR'));
+  set('presup-alertas',   alertas);
+  set('presup-pct-lbl',   pctPresup+'% del límite');
+  set('presup-disp-pct',  Math.max(0,100-pctPresup)+'% restante');
+
+  // Actualizar gráfico de ingresos vs gastos
+  if(charts.ivg){
+    const datasets = charts.ivg.data.datasets;
+    if(datasets[0]) datasets[0].data[5] = totalIngresos;
+    if(datasets[1]) datasets[1].data[5] = totalGastos;
+    charts.ivg.update('none');
+  }
+
+  // Cat list desde datos reales
+  renderCatList();
 }
 
 function fillSelects(){
@@ -1681,24 +1800,35 @@ function fillRepCatSel(){
   }catch(e){}
 }
 
-// ══════ CAT LIST (dashboard) ══════
+// ══════ CAT LIST (dashboard) — desde GASTOS_CACHE ══════
 function renderCatList(){
-  const colors=['#1a6fb5','#7c3aed','#1a9e5c','#c07a0a','#d63a3a','#0e8a7a'];
-  const items=[
-    {nm:'Alimentos',pct:65,amt:85000,c:colors[0]},
-    {nm:'Servicios',pct:40,amt:52000,c:colors[1]},
-    {nm:'Transporte',pct:30,amt:38000,c:colors[2]},
-    {nm:'Ocio',pct:22,amt:28000,c:colors[3]},
-    {nm:'Cuotas',pct:35,amt:45000,c:colors[4]},
-    {nm:'Salud',pct:14,amt:18000,c:colors[5]},
-  ];
-  document.getElementById('cat-list').innerHTML=items.map(i=>`
-    <div class="cat-row">
-      <div class="cat-nm">${i.nm}</div>
-      <div class="cat-bg"><div class="cat-fill" style="width:${i.pct}%;background:${i.c}"></div></div>
-      <div class="cat-pct">${i.pct}%</div>
-      <div class="cat-amt">$${(i.amt/1000).toFixed(0)}k</div>
-    </div>`).join('');
+  const mesActual = new Date().getMonth()+1;
+  const anioActual = new Date().getFullYear();
+  // Agrupar gastos del mes por categoría
+  const byCat = {};
+  GASTOS_CACHE.forEach(g=>{
+    const parts = String(g.fecha||'').split('/');
+    if(parseInt(parts[1])!==mesActual||parseInt(parts[2])!==anioActual) return;
+    const cat = g.cat || g.categoria || 'Sin categoría';
+    byCat[cat] = (byCat[cat]||0) + (g.monto||0);
+  });
+  const cats = Object.entries(byCat).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  const maxAmt = cats.length ? cats[0][1] : 1;
+  const catColors = ['#1a6fb5','#7c3aed','#1a9e5c','#c07a0a','#d63a3a','#0e8a7a'];
+  const el = document.getElementById('cat-list');
+  if(!cats.length){
+    el.innerHTML='<div style="text-align:center;padding:20px;font-size:12px;color:var(--text3)">Sin gastos este mes</div>';
+    return;
+  }
+  el.innerHTML=cats.map(([nm,amt],i)=>{
+    const pct=Math.round(amt/maxAmt*100);
+    return `<div class="cat-row">
+      <div class="cat-nm">${nm}</div>
+      <div class="cat-bg"><div class="cat-fill" style="width:${pct}%;background:${catColors[i%catColors.length]}"></div></div>
+      <div class="cat-pct">${pct}%</div>
+      <div class="cat-amt">$${(amt/1000).toFixed(0)}k</div>
+    </div>`;
+  }).join('');
 }
 
 // ══════ GASTOS TABLE ══════
@@ -1723,11 +1853,14 @@ function renderGastos(filter='todos', catFilter=''){
     <tr data-i="${i}">
       <td>${g.fecha}</td><td><strong>${g.desc}</strong></td>
       <td><span class="badge" style="background:${getCatColor(g.cat)}18;color:${getCatColor(g.cat)}">${g.cat}</span></td>
-      <td><span class="badge badge-gray">${g.medio}</span></td>
+      <td><span class="badge badge-gray">${g.medio||'—'}</span></td>
       <td>${badgeFor(g.asig)}</td>
       <td>${g.cuotas!=='—'?`<span class="badge badge-amber">${g.cuotas}</span>`:'—'}</td>
       <td class="mono amt-neg" style="text-align:right">$${Math.abs(g.monto).toLocaleString('es-AR')}</td>
-      <td><button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:12px" title="Eliminar" onclick="delGasto(${i})">🗑</button></td>
+      <td style="white-space:nowrap">
+        <button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:2px 4px" title="Editar" onclick="openEditGasto('${g.id}')">✏</button>
+        <button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:2px 4px" title="Eliminar" onclick="delGastoUI('${g.id}')">🗑</button>
+      </td>
     </tr>`).join('');
   const total=filtered.reduce((a,g)=>a+g.monto,0);
   document.getElementById('gastos-sub').textContent=`Total: $${Math.abs(total).toLocaleString('es-AR')} · ${filtered.length} movimientos`;
@@ -1742,11 +1875,66 @@ function renderGastos(filter='todos', catFilter=''){
     </tr>`).join('');
 }
 
-function delGasto(i){
-  if(!confirm('¿Eliminar este gasto? También se eliminará de Google Sheets.'))return;
-  GASTOS_CACHE.splice(i,1);
-  renderGastos();
-  toast('🗑 Gasto eliminado y sincronizado con Sheets','warn');
+async function delGastoUI(id){
+  if(!confirm('¿Eliminar este gasto? Se marca como eliminado en Sheets (el historial se conserva).')) return;
+  try {
+    await sheetsWrite('delGasto',{id});
+    GASTOS_CACHE = GASTOS_CACHE.filter(g=>g.id!==id);
+    renderGastos(); updateDashboardMetrics();
+    toast('🗑 Gasto eliminado en Sheets','warn');
+  } catch(e){ toast('❌ Error: '+e.message,'error'); }
+}
+
+function openEditGasto(id){
+  const g = GASTOS_CACHE.find(x=>x.id===id);
+  if(!g){ toast('Gasto no encontrado','warn'); return; }
+  // Reutilizar el formulario de nuevo gasto como edición
+  nav('nuevo', document.querySelectorAll('.nav-item')[6]);
+  document.getElementById('f-desc').value  = g.desc||'';
+  document.getElementById('f-monto').value = g.monto||'';
+  document.getElementById('f-fecha').value = fechaToInput(g.fecha);
+  document.getElementById('f-cat').value   = g.cat||'';
+  document.getElementById('f-medio').value = g.medio||'';
+  document.getElementById('f-asig').value  = g.asig||'rocio';
+  document.getElementById('f-notas').value = g.notas||'';
+  document.getElementById('f-edit-id').value = id;
+  document.getElementById('f-cuotas').selectedIndex = 0;
+  document.getElementById('cuota-preview').classList.remove('show');
+  // Cambiar botón a modo edición
+  const btn = document.querySelector('[onclick="guardar()"]');
+  if(btn){ btn.innerHTML='💾 Guardar cambios en Sheets'; btn.onclick=guardarEdicion; }
+  toast('✏ Editando gasto — modificá los campos y guardá','info');
+}
+
+async function guardarEdicion(){
+  const id    = document.getElementById('f-edit-id').value;
+  const desc  = document.getElementById('f-desc').value.trim();
+  const monto = parseFloat(document.getElementById('f-monto').value);
+  const fecha = document.getElementById('f-fecha').value;
+  const cat   = document.getElementById('f-cat').value;
+  const medio = document.getElementById('f-medio').value;
+  const asig  = document.getElementById('f-asig').value;
+  const notas = document.getElementById('f-notas').value.trim();
+  if(!desc||!monto){ toast('Completá descripción y monto','warn'); return; }
+  const [y,m,d] = fecha.split('-');
+  const fechaFmt = d+'/'+m+'/'+y;
+  const btn = document.querySelector('[onclick="guardarEdicion"]')||document.querySelector('button[onclick*="guardar"]');
+  try {
+    await sheetsWrite('editGasto',{id,fecha:fechaFmt,descripcion:desc,monto,categoria:cat,medio_pago:medio,asignado_a:asig,notas});
+    // Actualizar cache local
+    const idx = GASTOS_CACHE.findIndex(g=>g.id===id);
+    if(idx>=0) GASTOS_CACHE[idx]={...GASTOS_CACHE[idx],fecha:fechaFmt,desc,monto,cat,medio,asig,notas};
+    toast('✓ Gasto actualizado en Sheets','success');
+    resetForm();
+    renderGastos(); updateDashboardMetrics();
+  } catch(e){ toast('❌ Error guardando: '+e.message,'error'); }
+}
+
+function fechaToInput(f){
+  if(!f) return '';
+  const p=f.split('/');
+  if(p.length<3) return '';
+  return p[2]+'-'+p[1].padStart(2,'0')+'-'+p[0].padStart(2,'0');
 }
 
 function filterP(p,el){
@@ -1793,18 +1981,21 @@ function toggleEditPresup(){
   const p=document.getElementById('presup-edit-panel');
   p.style.display=p.style.display==='none'?'block':'none';
 }
-function savePresup(){
+async function savePresup(){
   PRESUP_BASE.forEach((d,i)=>{
     const v=parseFloat(document.getElementById('pl-'+i).value);
     if(!isNaN(v)&&v>0)d.limite=v;
   });
+  try{
+    await sheetsWrite('savePresupuesto',{data:PRESUP_BASE.map(d=>({cat:d.cat,limite:d.limite,notas:''}))});
+    toast('✓ Presupuesto guardado en Sheets','success');
+  }catch(e){ toast('❌ Error guardando presupuesto: '+e.message,'error'); }
   renderPresupuesto();
   if(charts.presup){
     charts.presup.data.datasets[1].data=PRESUP_BASE.map(d=>d.limite);
     charts.presup.update();
   }
   toggleEditPresup();
-  toast('✓ Límites actualizados','success');
 }
 
 // ══════ PROYECCION ══════
@@ -1900,6 +2091,36 @@ function delEvento(tipo,i){
   else eventosGastos.splice(i,1);
   renderEventos();
   renderProj();
+}
+
+// ══════ EDITAR / ELIMINAR INGRESOS ══════
+async function delIngresoUI(id){
+  if(!confirm('¿Eliminar este ingreso? Se marca como eliminado en Sheets.')) return;
+  try {
+    await sheetsWrite('delIngreso',{id});
+    INGRESOS_CACHE = INGRESOS_CACHE.filter(i=>i.id!==id);
+    updateDashboardMetrics();
+    toast('🗑 Ingreso eliminado en Sheets','warn');
+  } catch(e){ toast('❌ Error: '+e.message,'error'); }
+}
+
+function openEditIngreso(id){
+  const ing = INGRESOS_CACHE.find(x=>x.id===id);
+  if(!ing){ toast('Ingreso no encontrado','warn'); return; }
+  const desc  = prompt('Descripción:', ing.descripcion||'');
+  if(desc===null) return;
+  const monto = prompt('Monto:', ing.monto||'');
+  if(monto===null) return;
+  const notas = prompt('Notas:', ing.notas||'');
+  sheetsWrite('editIngreso',{id,descripcion:desc,monto:parseFloat(monto)||0,notas:notas||''})
+    .then(r=>{
+      if(r.ok){
+        const idx=INGRESOS_CACHE.findIndex(x=>x.id===id);
+        if(idx>=0) INGRESOS_CACHE[idx]={...INGRESOS_CACHE[idx],descripcion:desc,monto:parseFloat(monto)||0,notas:notas||''};
+        updateDashboardMetrics();
+        toast('✓ Ingreso actualizado en Sheets','success');
+      }
+    }).catch(e=>toast('❌ '+e.message,'error'));
 }
 
 // ══════ NUEVO GASTO ══════
@@ -2004,13 +2225,17 @@ async function guardar(){
 }
 function resetForm(){
   ['f-desc','f-notas'].forEach(id=>{document.getElementById(id).value=''});
-  document.getElementById('f-monto').value='';
+  ['f-monto'].forEach(id=>{document.getElementById(id).value=''});
   document.getElementById('f-cat').selectedIndex=0;
   document.getElementById('f-medio').selectedIndex=0;
   document.getElementById('f-asig').selectedIndex=0;
   document.getElementById('f-cuotas').selectedIndex=0;
   document.getElementById('cuota-preview').classList.remove('show');
   document.getElementById('custom-pct-group').style.display='none';
+  document.getElementById('f-edit-id').value='';
+  // Restaurar botón a modo nuevo
+  const btn=document.querySelector('[onclick*="guardar"]');
+  if(btn){btn.innerHTML='💾 Guardar y enviar a Sheets';btn.onclick=guardar;}
   setTodayDate();
 }
 
@@ -2033,12 +2258,12 @@ function renderConfig(){
     <span class="tag">👤 ${u}<button class="tag-del" onclick="delTag('user',${i})">✕</button></span>`).join('');
 }
 
-function addTag(type){
+async function addTag(type){
   if(type==='cat'){
     const n=document.getElementById('new-cat-name').value.trim();
-    const c=document.getElementById('new-cat-color').value;
+    const col=document.getElementById('new-cat-color').value;
     if(!n)return;
-    CFG.cats.push({name:n,color:c,icon:'📦'});
+    CFG.cats.push({name:n,color:col,icon:'📦',archivado:false});
     document.getElementById('new-cat-name').value='';
   } else if(type==='medio'){
     const n=document.getElementById('new-medio-name').value.trim();
@@ -2054,16 +2279,17 @@ function addTag(type){
   saveCfg();
   renderConfig();
   fillSelects();
-  toast('✓ Guardado','success');
+  toast('✓ Guardado en Sheets','success');
 }
 
-function delTag(type,i){
+async function delTag(type,i){
   if(type==='cat')CFG.cats.splice(i,1);
   else if(type==='medio')CFG.medios.splice(i,1);
   else CFG.users.splice(i,1);
   saveCfg();
   renderConfig();
   fillSelects();
+  toast('✓ Eliminado y guardado en Sheets','success');
 }
 
 function saveConfig(){
@@ -2171,54 +2397,42 @@ function toast(msg,type='success'){
 
 // ══════ CALENDARIO DE PAGOS ══════
 // Pagos fijos de Rocío (del spreadsheet: Expensas, ABL, Metrogas, Edenor, Telecentro, Monotributo, Patagonia VISA, Patagonia MASTER, COL psicólogos, Avalian, Acrobacia FM)
-let PAGOS_FIJOS = [
-  {id:1, nombre:'Expensas',       icon:'🏢', monto:95000,  medio:'Transferencia', desde:1, hasta:12, notas:''},
-  {id:2, nombre:'ABL',            icon:'🏛️', monto:8500,   medio:'Débito Santander', desde:1, hasta:12, notas:''},
-  {id:3, nombre:'Metrogas',       icon:'🔥', monto:12000,  medio:'Débito Santander', desde:1, hasta:12, notas:''},
-  {id:4, nombre:'Edenor',         icon:'⚡', monto:15000,  medio:'Débito Santander', desde:1, hasta:12, notas:''},
-  {id:5, nombre:'Telecentro',     icon:'📡', monto:18000,  medio:'Débito Santander', desde:1, hasta:12, notas:''},
-  {id:6, nombre:'Monotributo',    icon:'📋', monto:35000,  medio:'Débito Santander', desde:1, hasta:12, notas:''},
-  {id:7, nombre:'Patagonia VISA', icon:'💳', monto:0,      medio:'Débito Santander', desde:1, hasta:12, notas:'Varía según consumo'},
-  {id:8, nombre:'Patagonia MASTER',icon:'💳',monto:0,      medio:'Débito Santander', desde:1, hasta:12, notas:'Varía según consumo'},
-  {id:9, nombre:'COL Psicólogos', icon:'🧠', monto:4200,   medio:'Transferencia', desde:1, hasta:12, notas:''},
-  {id:10,nombre:'Avalian',        icon:'🏥', monto:28000,  medio:'Débito Santander', desde:1, hasta:12, notas:''},
-  {id:11,nombre:'Acrobacia FM',   icon:'🎭', monto:12000,  medio:'Efectivo', desde:1, hasta:12, notas:''},
-];
-
-// Estado de pagos: { "pagoId_año_mes": true/false }
-// SOLO guardamos en localStorage el estado de tildado (no datos financieros)
+// PAGOS_FIJOS se carga desde Sheets
+let PAGOS_FIJOS = [];
+// ESTADO_PAGOS se carga desde Sheets (hoja calendario_pagos)
 let ESTADO_PAGOS = {};
-try {
-  const s = localStorage.getItem('chanchito_cal_v1');
-  if(s) ESTADO_PAGOS = JSON.parse(s);
-} catch(e){}
-
-// IDs de pagos archivados (se guardan, no se borran — el historial queda)
+// ARCHIVADOS se deriva de PAGOS_FIJOS.archivado desde Sheets
 let ARCHIVADOS = new Set();
-try {
-  const a = localStorage.getItem('chanchito_cal_arch_v1');
-  if(a) ARCHIVADOS = new Set(JSON.parse(a));
-} catch(e){}
 
 function saveEstadoPagos(){
-  try{ localStorage.setItem('chanchito_cal_v1', JSON.stringify(ESTADO_PAGOS)); }catch(e){}
+  // No-op: el estado se guarda en Sheets via togglePago()
 }
 function saveArchivados(){
-  try{ localStorage.setItem('chanchito_cal_arch_v1', JSON.stringify([...ARCHIVADOS])); }catch(e){}
+  // Guardar estado de archivados en Sheets via savePagosFijos
+  savePagosFijosToSheets();
 }
 
 function getPagoKey(pagoId, year, mes){ return `${pagoId}_${year}_${mes}`; }
 
 function isPaid(pagoId, year, mes){ return !!ESTADO_PAGOS[getPagoKey(pagoId, year, mes)]; }
 
-function togglePago(pagoId, year, mes){
+async function togglePago(pagoId, year, mes){
   const key = getPagoKey(pagoId, year, mes);
   ESTADO_PAGOS[key] = !ESTADO_PAGOS[key];
-  saveEstadoPagos();
   renderCalendario();
-  if(ESTADO_PAGOS[key]) toast('✓ ¡Pago registrado! 🐷','success');
-  else toast('Pago desmarcado','warn');
+  const pago = PAGOS_FIJOS.find(p=>p.id===pagoId);
+  try {
+    await sheetsWrite('saveCalendarioPago',{
+      pago_id: pagoId, nombre: pago?pago.nombre:'', anio: year, mes: mes,
+      pagado: ESTADO_PAGOS[key], fecha_pago: ESTADO_PAGOS[key]?hoyPortal():'', monto_real:'', notas:''
+    });
+    if(ESTADO_PAGOS[key]) toast('✓ Pago registrado en Sheets 🐷','success');
+    else toast('Pago desmarcado en Sheets','warn');
+  } catch(e){
+    toast('❌ Error guardando en Sheets: '+e.message,'error');
+  }
 }
+function hoyPortal(){ const d=new Date(); return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear(); }
 
 function renderCalendario(){
   const year = parseInt(document.getElementById('cal-year').value || 2026);
@@ -2240,7 +2454,10 @@ function renderCalendario(){
       <div style="font-size:18px;line-height:1">${p.icon}</div>
       <div style="font-size:10px;font-weight:700;color:var(--text2);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:74px">${p.nombre}</div>
       ${p.monto>0?`<div style="font-size:9px;color:var(--text3);font-family:'JetBrains Mono',monospace">$${(p.monto/1000).toFixed(0)}k</div>`:'<div style="font-size:9px;color:var(--text3)">variable</div>'}
-      <button class="pago-del" style="opacity:.6;font-size:10px;margin-top:2px;display:block;margin-left:auto;margin-right:auto" onclick="archivarPago(${p.id})" title="Archivar">📦</button>
+      <div style="display:flex;gap:3px;justify-content:center;margin-top:3px">
+        <button class="pago-del" style="opacity:.7;font-size:10px" onclick="openAddPago(${p.id})" title="Editar">✏</button>
+        <button class="pago-del" style="opacity:.6;font-size:10px" onclick="archivarPago(${p.id})" title="Archivar">📦</button>
+      </div>
     </th>`;
   });
   hdr += '</tr>';
@@ -2357,50 +2574,90 @@ function renderCalendario(){
   }
 }
 
-function openAddPago(){
-  document.getElementById('modal-overlay').style.display='flex';
+function openAddPago(editId){
+  const overlay = document.getElementById('modal-overlay');
+  overlay.classList.add('open');
+  // Modo edición
+  if(editId !== undefined){
+    const p = PAGOS_FIJOS.find(x=>x.id===editId);
+    if(p){
+      document.getElementById('np-nombre').value = p.nombre;
+      document.getElementById('np-icon').value   = p.icon;
+      document.getElementById('np-monto').value  = p.monto;
+      document.getElementById('np-medio').value  = p.medio;
+      document.getElementById('np-desde').value  = p.desde;
+      document.getElementById('np-hasta').value  = p.hasta;
+      document.getElementById('np-notas').value  = p.notas||'';
+      document.getElementById('modal-edit-id').value = editId;
+      document.getElementById('modal-title').textContent = 'Editar pago fijo';
+    }
+  } else {
+    document.getElementById('modal-edit-id').value = '';
+    document.getElementById('modal-title').textContent = 'Nuevo pago fijo';
+  }
   document.getElementById('np-nombre').focus();
 }
 function closeModal(){
-  document.getElementById('modal-overlay').style.display='none';
-  ['np-nombre','np-icon','np-monto','np-notas'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('modal-overlay').classList.remove('open');
+  ['np-nombre','np-icon','np-monto','np-notas'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  document.getElementById('np-medio').selectedIndex=0;
+  document.getElementById('np-desde').value='1';
+  document.getElementById('np-hasta').value='12';
+  document.getElementById('modal-edit-id').value='';
 }
-function savePagoFijo(){
+async function savePagoFijo(){
   const nombre = document.getElementById('np-nombre').value.trim();
   if(!nombre){ toast('Completá el nombre del pago','warn'); return; }
-  const icon = document.getElementById('np-icon').value.trim() || '💳';
+  const icon  = document.getElementById('np-icon').value.trim() || '💳';
   const monto = parseFloat(document.getElementById('np-monto').value)||0;
   const medio = document.getElementById('np-medio').value;
   const desde = parseInt(document.getElementById('np-desde').value);
   const hasta = parseInt(document.getElementById('np-hasta').value);
   const notas = document.getElementById('np-notas').value.trim();
+  const editId = document.getElementById('modal-edit-id').value;
+  if(editId !== ''){
+    const idx = PAGOS_FIJOS.findIndex(p=>p.id===parseInt(editId));
+    if(idx >= 0){
+      PAGOS_FIJOS[idx] = {...PAGOS_FIJOS[idx], nombre, icon, monto, medio, desde, hasta, notas};
+      closeModal(); renderCalendario();
+      savePagosFijosToSheets();
+      toast(`✓ "${nombre}" actualizado en Sheets`,'success');
+      return;
+    }
+  }
   const nuevoId = PAGOS_FIJOS.length ? Math.max(...PAGOS_FIJOS.map(p=>p.id))+1 : 1;
-  PAGOS_FIJOS.push({id:nuevoId, nombre, icon, monto, medio, desde, hasta, notas});
-  closeModal();
-  renderCalendario();
-  toast(`✓ "${nombre}" agregado al calendario 📅`,'success');
+  PAGOS_FIJOS.push({id:nuevoId, nombre, icon, monto, medio, desde, hasta, notas, archivado:false});
+  closeModal(); renderCalendario();
+  savePagosFijosToSheets();
+  toast(`✓ "${nombre}" agregado y guardado en Sheets 📅`,'success');
 }
 
-function archivarPago(id){
+function savePagosFijosToSheets(){
+  const todos = PAGOS_FIJOS.map(p=>({...p, archivado:ARCHIVADOS.has(p.id)}));
+  sheetsWrite('savePagosFijos',{data:todos}).catch(e=>console.error('savePagosFijos:',e));
+}
+
+async function archivarPago(id){
   const pago = PAGOS_FIJOS.find(p=>p.id===id);
   if(!pago) return;
-  // Contar cuántos meses tiene pagados para mostrarlo en el mensaje
   const pagadosHist = Object.keys(ESTADO_PAGOS).filter(k=>k.startsWith(id+'_')&&ESTADO_PAGOS[k]).length;
-  const msg = `¿Archivar "${pago.nombre}"?\n\nDeja de aparecer en el calendario activo pero se conserva todo el historial de pagos (${pagadosHist} mes${pagadosHist!==1?'es':''} registrado${pagadosHist!==1?'s':''}).\n\nPodés restaurarlo cuando quieras.`;
+  const msg = `¿Archivar "${pago.nombre}"?\n\nDeja de aparecer en el calendario pero se conserva el historial (${pagadosHist} mes${pagadosHist!==1?'es':''} registrados).\n\nPodés restaurarlo cuando quieras.`;
   if(!confirm(msg)) return;
   ARCHIVADOS.add(id);
-  saveArchivados();
+  pago.archivado = true;
+  savePagosFijosToSheets();
   renderCalendario();
-  toast(`📦 "${pago.nombre}" archivado. El historial se conserva.`, 'info');
+  toast(`📦 "${pago.nombre}" archivado y guardado en Sheets.`,'info');
 }
 
-function desarchivarPago(id){
+async function desarchivarPago(id){
   const pago = PAGOS_FIJOS.find(p=>p.id===id);
   if(!pago) return;
   ARCHIVADOS.delete(id);
-  saveArchivados();
+  pago.archivado = false;
+  savePagosFijosToSheets();
   renderCalendario();
-  toast(`↩ "${pago.nombre}" restaurado al calendario activo.`, 'success');
+  toast(`↩ "${pago.nombre}" restaurado al calendario.`,'success');
 }
 
 function toggleArchivados(){
