@@ -1587,8 +1587,9 @@ async function loadFromSheets(silent=false){
   time.textContent='Cargando desde Sheets...';
   if(!silent) toast('🐷 Conectando con Google Sheets...','info');
 
-  // Si el SCRIPT_URL no está configurado, avisa y sale
-  if(SCRIPT_URL === 'TU_APPS_SCRIPT_URL_AQUI'){
+  // Usar getScriptUrl() que lee localStorage — NO la constante hardcodeada
+  const effectiveUrl = getScriptUrl();
+  if(!effectiveUrl || effectiveUrl === 'TU_APPS_SCRIPT_URL_AQUI'){
     dot.style.background='var(--amber)';
     time.textContent='Sin configurar';
     toast('⚙️ Configurá la URL del Apps Script en Configuración → Google Sheets','warn');
@@ -1671,7 +1672,11 @@ function fillRepCatSel(){
   try{
     const su=localStorage.getItem('chanchito_script_url');
     const surl=localStorage.getItem('chanchito_sheets_url');
-    if(su){ const el=document.getElementById('script-url'); if(el) el.value=su; }
+    if(su){
+      const el=document.getElementById('script-url');
+      if(el) el.value=su;
+      window._scriptUrl=su; // asegurar que esté en memoria
+    }
     if(surl){ const el=document.getElementById('sheets-url'); if(el) el.value=surl; }
   }catch(e){}
 }
@@ -2066,28 +2071,26 @@ function saveConfig(){
   const scriptUrl=document.getElementById('script-url').value.trim();
   const tabName=document.getElementById('sheets-tab').value.trim();
   if(scriptUrl){
-    // Única cosa de config que guardamos en localStorage (no datos financieros)
     try{ localStorage.setItem('chanchito_script_url', scriptUrl); }catch(e){}
-    // Actualizar la constante en memoria
-    window._scriptUrl = scriptUrl;
+    window._scriptUrl = scriptUrl; // disponible de inmediato sin recargar
   }
   if(sheetUrl) try{ localStorage.setItem('chanchito_sheets_url', sheetUrl); }catch(e){}
   if(tabName)  try{ localStorage.setItem('chanchito_sheets_tab', tabName); }catch(e){}
-  toast('✓ Configuración guardada. Hacé sync para cargar los datos.','success');
+  toast('✓ Configuración guardada. Sincronizando...','success');
+  // Sincronizar inmediatamente después de guardar
+  setTimeout(()=>loadFromSheets(false), 600);
 }
 
-// Leer SCRIPT_URL guardada al arrancar
-(function loadScriptUrl(){
+// Cargar URL guardada inmediatamente al arrancar la página
+function loadSavedScriptUrl(){
   try{
     const saved = localStorage.getItem('chanchito_script_url');
-    if(saved) window._scriptUrl = saved;
+    if(saved && saved.trim()) {
+      window._scriptUrl = saved.trim();
+    }
   }catch(e){}
-})();
-
-// Override SCRIPT_URL para que use la dinámica si existe
-Object.defineProperty(window, 'SCRIPT_URL_EFFECTIVE', {
-  get(){ return window._scriptUrl || SCRIPT_URL; }
-});
+}
+loadSavedScriptUrl(); // ejecutar de inmediato
 
 // ══════ SYNC ══════
 async function syncSheets(btn, from){
