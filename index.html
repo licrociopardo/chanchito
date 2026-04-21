@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Chanchito 🐷 — Rocío</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
 // ══════ IMPORTAR / EXPORTAR ══════
 let impWorkbook=null, impActiveSheet=null, impRawData=[], impHeaders=[], impProcessed=[];
 const IMP_REQ = ['imap-fecha','imap-monto','imap-desc'];
@@ -2719,6 +2720,11 @@ function renderCalendario(){
 function openAddPago(editId){
   const overlay = document.getElementById('modal-overlay');
   overlay.classList.add('open');
+  // Siempre rellenar el select de medios antes de cualquier setValue
+  const npMedio = document.getElementById('np-medio');
+  if(npMedio && CFG.medios.length){
+    npMedio.innerHTML='<option value="">Seleccionar...</option>'+CFG.medios.map(m=>`<option value="${m}">${m}</option>`).join('');
+  }
   // Modo edición
   if(editId !== undefined){
     const p = PAGOS_FIJOS.find(x=>x.id===editId);
@@ -2726,16 +2732,18 @@ function openAddPago(editId){
       document.getElementById('np-nombre').value = p.nombre;
       document.getElementById('np-icon').value   = p.icon;
       document.getElementById('np-monto').value  = p.monto;
-      document.getElementById('np-medio').value  = p.medio;
       document.getElementById('np-desde').value  = p.desde;
       document.getElementById('np-hasta').value  = p.hasta;
       document.getElementById('np-notas').value  = p.notas||'';
       document.getElementById('modal-edit-id').value = editId;
       document.getElementById('modal-title').textContent = 'Editar pago fijo';
+      // Setear medio DESPUÉS de poblar el select
+      if(npMedio) npMedio.value = p.medio||'';
     }
   } else {
     document.getElementById('modal-edit-id').value = '';
     document.getElementById('modal-title').textContent = 'Nuevo pago fijo';
+    if(npMedio) npMedio.selectedIndex = 0;
   }
   document.getElementById('np-nombre').focus();
 }
