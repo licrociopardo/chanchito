@@ -1488,14 +1488,8 @@ function saveCfg() {
 // PRESUP_BASE se carga desde Sheets
 let PRESUP_BASE = [];
 
-let eventosIngresos = [
-  {desc:'Aguinaldo',monto:200000,mes:6,tipo:'Aguinaldo',icon:'💰'},
-  {desc:'Bono fin de año',monto:50000,mes:12,tipo:'Bono',icon:'🎁'},
-];
-let eventosGastos = [
-  {desc:'Vacaciones en Bariloche',monto:150000,mes:7,cat:'Viaje',icon:'🏔️'},
-  {desc:'Regalo navidad',monto:30000,mes:12,cat:'Regalo',icon:'🎄'},
-];
+let eventosIngresos = [];
+let eventosGastos = [];
 
 let charts = {};
 const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
@@ -1762,11 +1756,26 @@ function updateDashboardMetrics(){
   set('presup-pct-lbl',   pctPresup+'% del límite');
   set('presup-disp-pct',  Math.max(0,100-pctPresup)+'% restante');
 
-  // Actualizar gráfico de ingresos vs gastos
+  // Actualizar chart ivg con los últimos 6 meses reales
   if(charts.ivg){
-    const datasets = charts.ivg.data.datasets;
-    if(datasets[0]) datasets[0].data[5] = totalIngresos;
-    if(datasets[1]) datasets[1].data[5] = totalGastos;
+    const now = new Date();
+    const labels6 = [];
+    const ingData = [];
+    const gastData = [];
+    for(let i=5;i>=0;i--){
+      const d = new Date(now.getFullYear(),now.getMonth()-i,1);
+      const mm = String(d.getMonth()+1).padStart(2,'0');
+      const yy = d.getFullYear();
+      labels6.push(MESES[d.getMonth()]);
+      const kG = yy+'-'+mm;
+      const gMes = GASTOS_CACHE.filter(g=>{const p=String(g.fecha||'').split('/');return p[2]+'-'+p[1].padStart(2,'0')===kG;}).reduce((s,g)=>s+g.monto,0);
+      const iMes = INGRESOS_CACHE.filter(g=>{const p=String(g.fecha||'').split('/');return p[2]+'-'+p[1].padStart(2,'0')===kG;}).reduce((s,g)=>s+parseFloat(g.monto||0),0);
+      gastData.push(gMes);
+      ingData.push(iMes);
+    }
+    charts.ivg.data.labels = labels6;
+    charts.ivg.data.datasets[0].data = ingData;
+    charts.ivg.data.datasets[1].data = gastData;
     charts.ivg.update('none');
   }
 
@@ -2001,11 +2010,28 @@ async function savePresup(){
 // ══════ PROYECCION ══════
 function renderProj(){
   const n=parseInt(document.getElementById('proj-range').value||6);
-  const baseGastos=[148200,165000,152000,138000,135000,220000,128000,125000,122000,120000,118000,180000];
-  const baseIng=[200000,200000,200000,200000,200000,400000,200000,200000,200000,200000,200000,400000];
-  // Agregar eventos futuros a la proyección
-  eventosIngresos.forEach(ev=>{ if(ev.mes>=5&&ev.mes<=12) baseIng[ev.mes-1]+=ev.monto; });
-  eventosGastos.forEach(ev=>{ if(ev.mes>=5&&ev.mes<=12) baseGastos[ev.mes-1]+=ev.monto; });
+  // Proyección basada en promedio real de GASTOS_CACHE + eventos futuros
+  const mesActualPj = new Date().getMonth()+1;
+  const anioActualPj = new Date().getFullYear();
+  // Calcular promedio mensual real desde el historial
+  const gastosPorMes = {};
+  GASTOS_CACHE.forEach(g=>{
+    const p=String(g.fecha||'').split('/');
+    if(p.length<3) return;
+    const k=p[2]+'-'+p[1];
+    gastosPorMes[k]=(gastosPorMes[k]||0)+g.monto;
+  });
+  const mesesConDatos = Object.values(gastosPorMes);
+  const promedioGasto = mesesConDatos.length ? Math.round(mesesConDatos.reduce((a,b)=>a+b,0)/mesesConDatos.length) : 0;
+  const ingresosReales = INGRESOS_CACHE.length ? Math.round(INGRESOS_CACHE.reduce((s,i)=>s+parseFloat(i.monto||0),0)/Math.max(1,new Set(INGRESOS_CACHE.map(i=>String(i.fecha||'').split('/').slice(1).join('/'))).size)) : 0;
+  const baseGastos = Array(12).fill(promedioGasto);
+  const baseIng    = Array(12).fill(ingresosReales);
+  // Mes actual con gasto real
+  const gastoMesActual = (gastosPorMes[anioActualPj+'-'+String(mesActualPj).padStart(2,'0')])||0;
+  if(gastoMesActual>0) baseGastos[mesActualPj-1]=gastoMesActual;
+  // Agregar eventos futuros
+  eventosIngresos.forEach(ev=>{ if(ev.mes>=1&&ev.mes<=12) baseIng[ev.mes-1]+=ev.monto; });
+  eventosGastos.forEach(ev=>{ if(ev.mes>=1&&ev.mes<=12) baseGastos[ev.mes-1]+=ev.monto; });
   const labels=MESES.slice(3,3+n);
   const gastos=baseGastos.slice(3,3+n);
   const ing=baseIng.slice(3,3+n);
@@ -2026,15 +2052,33 @@ function renderProj(){
   }).join('');
 
   // Cuotas
-  document.getElementById('cuotas-comp').innerHTML=[
-    {nm:'Silla escritorio',cuotas:6,monto:15000,hasta:'Oct 2026',pct:50},
-    {nm:'TV Smart 55"',cuotas:15,monto:28000,hasta:'Jul 2027',pct:83},
-    {nm:'Heladera',cuotas:3,monto:12000,hasta:'Jun 2026',pct:25},
-  ].map(c=>`<div class="cuota-item">
-    <div class="cuota-hd"><div class="cuota-nm">${c.nm}</div><div class="cuota-meta">${c.cuotas} cuotas restantes</div></div>
-    <div class="cuota-bar-bg"><div class="cuota-bar-fill" style="width:${c.pct}%"></div></div>
-    <div class="cuota-ft"><span>$${c.monto.toLocaleString('es-AR')}/mes</span><span>Hasta ${c.hasta}</span></div>
-  </div>`).join('');
+  // Cuotas comprometidas desde GASTOS_CACHE — gastos con cuota_actual < total_cuotas
+  const cuotasMap = {};
+  GASTOS_CACHE.forEach(g=>{
+    const ca=parseInt(g.cuota_actual||g.raw?.cuota_actual||0);
+    const ct=parseInt(g.total_cuotas||g.raw?.total_cuotas||0);
+    if(!ca||!ct||ca>=ct) return;
+    const nm = (g.desc||g.descripcion||'').replace(/\s*\(cuota.*\)/i,'').trim();
+    if(!cuotasMap[nm]||ca>cuotasMap[nm].ca){
+      // Calcular fecha estimada de última cuota
+      const p=String(g.fecha||'').split('/');
+      const fBase = p.length>=3 ? new Date(parseInt(p[2]),parseInt(p[1])-1,1) : new Date();
+      const fFin = new Date(fBase.getFullYear(),fBase.getMonth()+(ct-ca),1);
+      const mesNm=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+      cuotasMap[nm]={nm,ca,ct,monto:g.monto,pct:Math.round(ca/ct*100),hasta:mesNm[fFin.getMonth()]+' '+fFin.getFullYear()};
+    }
+  });
+  const cuotasArr = Object.values(cuotasMap);
+  const elComp = document.getElementById('cuotas-comp');
+  if(!cuotasArr.length){
+    elComp.innerHTML='<div style="text-align:center;padding:20px;font-size:12px;color:var(--text3)">Sin cuotas activas</div>';
+  } else {
+    elComp.innerHTML=cuotasArr.map(cu=>`<div class="cuota-item">
+      <div class="cuota-hd"><div class="cuota-nm">${cu.nm}</div><div class="cuota-meta">Cuota ${cu.ca}/${cu.ct}</div></div>
+      <div class="cuota-bar-bg"><div class="cuota-bar-fill" style="width:${cu.pct}%"></div></div>
+      <div class="cuota-ft"><span>$${cu.monto.toLocaleString('es-AR')}/cuota</span><span>Hasta ${cu.hasta}</span></div>
+    </div>`).join('');
+  }
 
   // Eventos
   renderEventos();
@@ -2350,8 +2394,8 @@ function initCharts(){
     data:{
       labels:['Nov','Dic','Ene','Feb','Mar','Abr'],
       datasets:[
-        {label:'Ingresos',data:[200000,200000,200000,200000,200000,200000],backgroundColor:'rgba(26,111,181,.5)',borderRadius:5,borderSkipped:false},
-        {label:'Gastos',data:[175000,190000,160000,185000,165000,148200],backgroundColor:'rgba(214,58,58,.45)',borderRadius:5,borderSkipped:false}
+        {label:'Ingresos',data:[0,0,0,0,0,0],backgroundColor:'rgba(26,111,181,.5)',borderRadius:5,borderSkipped:false},
+        {label:'Gastos',data:[0,0,0,0,0,0],backgroundColor:'rgba(214,58,58,.45)',borderRadius:5,borderSkipped:false}
       ]
     },options:dflt
   });
@@ -2378,8 +2422,8 @@ function initCharts(){
     data:{
       labels:MESES.slice(3,9),
       datasets:[
-        {label:'Ingresos',data:[200000,200000,200000,200000,200000,400000],borderColor:'#1a6fb5',backgroundColor:'rgba(26,111,181,.07)',tension:.35,pointBackgroundColor:'#1a6fb5',pointRadius:4,fill:true},
-        {label:'Gastos',data:[148200,165000,152000,138000,135000,220000],borderColor:'#d63a3a',backgroundColor:'rgba(214,58,58,.06)',tension:.35,pointBackgroundColor:'#d63a3a',pointRadius:4,fill:true,borderDash:[5,3]}
+        {label:'Ingresos',data:[0,0,0,0,0,0],borderColor:'#1a6fb5',backgroundColor:'rgba(26,111,181,.07)',tension:.35,pointBackgroundColor:'#1a6fb5',pointRadius:4,fill:true},
+        {label:'Gastos',data:[0,0,0,0,0,0],borderColor:'#d63a3a',backgroundColor:'rgba(214,58,58,.06)',tension:.35,pointBackgroundColor:'#d63a3a',pointRadius:4,fill:true,borderDash:[5,3]}
       ]
     },options:dflt
   });
