@@ -1035,7 +1035,7 @@ textarea{resize:vertical;min-height:68px}
         <div class="rep-desc">Ingresos, gastos y balance del mes con desglose por categoría.</div>
         <div class="rep-actions">
           <select class="form-sel"><option>Abril 2026</option><option>Marzo 2026</option><option>Febrero 2026</option></select>
-          <button class="btn btn-primary btn-sm" onclick="dl('Reporte mensual PDF')">↓ PDF</button>
+          <button class="btn btn-primary btn-sm" onclick="dl('mensual')">↓ PDF</button>
           <button class="btn btn-ghost btn-sm" onclick="dl('Reporte mensual Excel')">↓ Excel</button>
         </div>
       </div>
@@ -1045,7 +1045,7 @@ textarea{resize:vertical;min-height:68px}
         <div class="rep-desc">Evolución mensual, ahorro acumulado y proyección de cierre de año.</div>
         <div class="rep-actions">
           <select class="form-sel"><option>2026</option><option>2025</option></select>
-          <button class="btn btn-primary btn-sm" onclick="dl('Reporte anual PDF')">↓ PDF</button>
+          <button class="btn btn-primary btn-sm" onclick="dl('anual')">↓ PDF</button>
           <button class="btn btn-ghost btn-sm" onclick="dl('Reporte anual Excel')">↓ Excel</button>
         </div>
       </div>
@@ -1054,7 +1054,7 @@ textarea{resize:vertical;min-height:68px}
         <div class="rep-nm">Reporte de cuotas</div>
         <div class="rep-desc">Estado de todos los pagos en cuotas activos y cronograma de vencimientos.</div>
         <div class="rep-actions">
-          <button class="btn btn-primary btn-sm" onclick="dl('Cuotas PDF')">↓ PDF</button>
+          <button class="btn btn-primary btn-sm" onclick="dl('cuotas')">↓ PDF</button>
           <button class="btn btn-ghost btn-sm" onclick="dl('Cuotas Excel')">↓ Excel</button>
         </div>
       </div>
@@ -1064,7 +1064,7 @@ textarea{resize:vertical;min-height:68px}
         <div class="rep-desc">Análisis de gastos agrupados con tendencias históricas por categoría.</div>
         <div class="rep-actions">
           <select class="form-sel" id="rep-cat-sel"><option>Todas</option></select>
-          <button class="btn btn-primary btn-sm" onclick="dl('Categorías PDF')">↓ PDF</button>
+          <button class="btn btn-primary btn-sm" onclick="dl('categorias')">↓ PDF</button>
         </div>
       </div>
       <div class="rep-card" style="grid-column:1/-1">
@@ -1706,17 +1706,38 @@ function updateDashboardMetrics(){
   const totalCuotas = cuotasActivas.reduce((s,g)=>s+(g.monto||0),0);
 
   // ── Pct gastos/ingresos
-  const pctGastos = totalIngresos>0 ? Math.round(totalGastos/totalIngresos*100) : 0;
+  const pctGastos = totalIngresos>0 ? Math.round(totalGastos/totalIngresos*100) : (totalGastos>0?100:0);
+
+  // Cuotas: monto mensual comprometido (cuota del mes siguiente, una por grupo)
+  // Buscar cuotas distintas — una línea por grupo de cuotas pendientes
+  const cuotasGrupos = {};
+  GASTOS_CACHE.forEach(g=>{
+    const ca=parseInt(g.raw?.cuota_actual||g.cuota_actual||0);
+    const ct=parseInt(g.raw?.total_cuotas||g.total_cuotas||0);
+    if(!ca||!ct) return;
+    const nm=(g.desc||'').replace(/\s*\(cuota.*\)/i,'').trim()||g.id;
+    if(!cuotasGrupos[nm]){
+      cuotasGrupos[nm]={monto:g.monto, ca, ct};
+    } else if(ca > cuotasGrupos[nm].ca){
+      cuotasGrupos[nm]={monto:g.monto, ca, ct};
+    }
+  });
+  // Solo contar grupos que tienen cuotas restantes
+  const cuotasMensuales = Object.values(cuotasGrupos).filter(g=>g.ca<g.ct).reduce((s,g)=>s+g.monto,0);
+
+  // Balance: si no hay ingresos y hay gastos → déficit
+  const balanceDisplay = balance < 0 || (totalGastos > 0 && totalIngresos === 0) ? -Math.abs(totalGastos) : balance;
+  const balanceLabel = totalGastos > 0 && totalIngresos === 0 ? 'Déficit (sin ingresos)' : balance >= 0 ? 'Superávit' : 'Déficit';
 
   // Dashboard
   const set = (id,val)=>{ const el=document.getElementById(id); if(el) el.textContent=val; };
   set('m-ingresos',  '$'+totalIngresos.toLocaleString('es-AR'));
   set('m-gastos',    '$'+totalGastos.toLocaleString('es-AR'));
-  set('m-balance',   '$'+balance.toLocaleString('es-AR'));
-  set('m-cuotas',    '$'+totalCuotas.toLocaleString('es-AR'));
+  set('m-balance',   '$'+balanceDisplay.toLocaleString('es-AR'));
+  set('m-cuotas',    '$'+cuotasMensuales.toLocaleString('es-AR'));
   set('m-ingresos-delta', ingresosDelMes.length+' movimiento'+(ingresosDelMes.length!==1?'s':''));
   set('m-gastos-delta',   pctGastos+'% del ingreso');
-  set('m-balance-delta',  balance>=0?'Superávit':'Déficit');
+  set('m-balance-delta',  balanceLabel);
 
   // Ingresos page
   set('ing-total',  '$'+totalIngresos.toLocaleString('es-AR'));
@@ -1744,6 +1765,8 @@ function updateDashboardMetrics(){
     }
   }
 
+  // Refrescar chart presupuesto con datos reales
+  refreshPresupChart();
   // Presupuesto metrics
   const limiteTotal = PRESUP_BASE.reduce((s,p)=>s+p.limite,0);
   const pctPresup   = limiteTotal>0?Math.round(totalGastos/limiteTotal*100):0;
@@ -1984,6 +2007,31 @@ function renderPresupuesto(){
   document.getElementById('presup-edit-form').innerHTML=PRESUP_BASE.map((d,i)=>`
     <div class="fg"><label class="fl">${d.cat}</label>
     <input class="fi" id="pl-${i}" type="number" value="${d.limite}"></div>`).join('');
+  // Refrescar chart con datos reales
+  refreshPresupChart();
+}
+
+function refreshPresupChart(){
+  if(!charts.presup||!PRESUP_BASE.length) return;
+  const mesActual=new Date().getMonth()+1, anioActual=new Date().getFullYear();
+  // Calcular gasto real por categoría este mes
+  const gastosCat={};
+  GASTOS_CACHE.forEach(g=>{
+    const p=String(g.fecha||'').split('/');
+    if(parseInt(p[1])!==mesActual||parseInt(p[2])!==anioActual) return;
+    const cat=g.cat||g.categoria||'';
+    gastosCat[cat]=(gastosCat[cat]||0)+g.monto;
+  });
+  // Actualizar PRESUP_BASE.gasto
+  PRESUP_BASE.forEach(d=>{ d.gasto=gastosCat[d.cat]||0; });
+  charts.presup.data.labels = PRESUP_BASE.map(d=>d.cat);
+  charts.presup.data.datasets[0].data = PRESUP_BASE.map(d=>d.gasto);
+  charts.presup.data.datasets[0].backgroundColor = PRESUP_BASE.map(d=>{
+    const cat=CFG.cats.find(cc=>cc.name===d.cat);
+    return cat?cat.color+'88':'#88888855';
+  });
+  charts.presup.data.datasets[1].data = PRESUP_BASE.map(d=>d.limite);
+  charts.presup.update();
 }
 
 function toggleEditPresup(){
@@ -2370,8 +2418,58 @@ async function syncSheets(btn, from){
 }
 
 // ══════ REPORTES ══════
-function dl(name){
-  toast(`✓ ${name} generado y listo para descargar`,'success');
+function dl(tipo, mesVal){
+  // Construir contenido HTML del reporte
+  const mesEl = document.getElementById('mes-sel');
+  const mesLabel = mesEl ? mesEl.options[mesEl.selectedIndex].text : 'Mes actual';
+  const mesActual=new Date().getMonth()+1, anioActual=new Date().getFullYear();
+  const gastosDelMes=GASTOS_CACHE.filter(g=>{const p=String(g.fecha||'').split('/');return parseInt(p[1])===mesActual&&parseInt(p[2])===anioActual;});
+  const ingresosDelMes=INGRESOS_CACHE.filter(i=>{const p=String(i.fecha||'').split('/');return parseInt(p[1])===mesActual&&parseInt(p[2])===anioActual;});
+  const totalG=gastosDelMes.reduce((s,g)=>s+g.monto,0);
+  const totalI=ingresosDelMes.reduce((s,i)=>s+parseFloat(i.monto||0),0);
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+  <title>Chanchito — ${mesLabel}</title>
+  <style>
+    body{font-family:sans-serif;padding:32px;color:#1a1714;font-size:13px}
+    h1{font-size:20px;margin-bottom:4px}
+    .sub{color:#888;margin-bottom:24px;font-size:12px}
+    .metrics{display:flex;gap:16px;margin-bottom:24px}
+    .m{border:1px solid #e2ddd6;border-radius:8px;padding:12px 16px;flex:1}
+    .m-label{font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+    .m-val{font-size:20px;font-weight:700;font-family:monospace}
+    .green{color:#1a9e5c}.red{color:#d63a3a}.blue{color:#1a6fb5}
+    table{width:100%;border-collapse:collapse;margin-bottom:24px}
+    th{text-align:left;padding:8px 10px;font-size:10px;text-transform:uppercase;color:#888;border-bottom:2px solid #e2ddd6}
+    td{padding:8px 10px;border-bottom:1px solid #e2ddd6;font-size:12px}
+    h2{font-size:14px;margin:20px 0 10px}
+    .footer{margin-top:32px;font-size:10px;color:#aaa;border-top:1px solid #e2ddd6;padding-top:12px}
+  </style></head><body>
+  <h1>🐷 Chanchito — Reporte ${tipo==='anual'?'Anual '+anioActual:mesLabel}</h1>
+  <div class="sub">Generado el ${new Date().toLocaleDateString('es-AR')} · Portal de Rocío</div>
+  <div class="metrics">
+    <div class="m"><div class="m-label">Ingresos</div><div class="m-val blue">$${totalI.toLocaleString('es-AR')}</div></div>
+    <div class="m"><div class="m-label">Gastos</div><div class="m-val red">$${totalG.toLocaleString('es-AR')}</div></div>
+    <div class="m"><div class="m-label">Balance</div><div class="m-val ${totalI-totalG>=0?'green':'red'}">$${(totalI-totalG).toLocaleString('es-AR')}</div></div>
+  </div>
+  <h2>Gastos del mes</h2>
+  <table><thead><tr><th>Fecha</th><th>Descripción</th><th>Categoría</th><th>Medio</th><th>Cuotas</th><th>Monto</th></tr></thead>
+  <tbody>${gastosDelMes.length?gastosDelMes.map(g=>`<tr><td>${g.fecha}</td><td>${g.desc}</td><td>${g.cat}</td><td>${g.medio||'—'}</td><td>${g.cuotas}</td><td>$${g.monto.toLocaleString('es-AR')}</td></tr>`).join(''):'<tr><td colspan="6" style="color:#aaa;text-align:center">Sin gastos este mes</td></tr>'}</tbody>
+  </table>
+  <h2>Ingresos del mes</h2>
+  <table><thead><tr><th>Fecha</th><th>Descripción</th><th>Categoría</th><th>Monto</th></tr></thead>
+  <tbody>${ingresosDelMes.length?ingresosDelMes.map(i=>`<tr><td>${i.fecha}</td><td>${i.descripcion||'—'}</td><td>${i.categoria||'—'}</td><td>$${parseFloat(i.monto||0).toLocaleString('es-AR')}</td></tr>`).join(''):'<tr><td colspan="4" style="color:#aaa;text-align:center">Sin ingresos este mes</td></tr>'}</tbody>
+  </table>
+  <div class="footer">Chanchito 🐷 · Exportado desde el portal de finanzas</div>
+  </body></html>`;
+
+  const win = window.open('','_blank');
+  if(!win){ toast('❌ Bloqueaste las ventanas emergentes — permitilas para descargar PDF','error'); return; }
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(()=>{ win.print(); }, 400);
+  toast('✓ Reporte abierto — usá Ctrl+P / Guardar como PDF','success');
 }
 
 // ══════ CHARTS ══════
@@ -2404,10 +2502,10 @@ function initCharts(){
   charts.presup=new Chart(document.getElementById('ch-presup'),{
     type:'bar',
     data:{
-      labels:PRESUP_BASE.map(d=>d.cat),
+      labels:[],
       datasets:[
-        {label:'Gastado',data:PRESUP_BASE.map(d=>d.gasto),backgroundColor:PRESUP_BASE.map(d=>{ const c=CFG.cats.find(cc=>cc.name===d.cat); return c?c.color+'88':'#88888855'; }),borderRadius:4,borderSkipped:false},
-        {label:'Límite',data:PRESUP_BASE.map(d=>d.limite),backgroundColor:'rgba(0,0,0,0.05)',borderRadius:4,borderSkipped:false,borderColor:'rgba(0,0,0,0.12)',borderWidth:1}
+        {label:'Gastado',data:[],backgroundColor:[],borderRadius:4,borderSkipped:false},
+        {label:'Límite',data:[],backgroundColor:'rgba(0,0,0,0.05)',borderRadius:4,borderSkipped:false,borderColor:'rgba(0,0,0,0.12)',borderWidth:1}
       ]
     },
     options:{...dflt,indexAxis:'y',scales:{
