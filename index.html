@@ -1356,6 +1356,7 @@ async function loadFromSheets(silent=false){
     }
 
     // Actualizar toda la UI
+    fillMesSel(); // FIX: poblar selector de meses con datos reales
     renderGastos();
     renderConfig();
     renderPresupuesto();
@@ -1447,8 +1448,8 @@ function updateDashboardMetrics(){
 
   // ── Cuotas activas: gastos con cuota_actual que no son la última
   const cuotasActivas = GASTOS_CACHE.filter(g=>{
-    const ca=parseInt(g.cuota_actual||g.cuotaActual||0);
-    const ct=parseInt(g.total_cuotas||g.totalCuotas||0);
+    const ca=parseInt(g.raw?.cuota_actual||g.cuota_actual||g.cuotaActual||0);
+    const ct=parseInt(g.raw?.total_cuotas||g.total_cuotas||g.totalCuotas||0);
     return ca>0 && ct>0 && ca<ct;
   });
   const totalCuotas = cuotasActivas.reduce((s,g)=>s+(g.monto||0),0);
@@ -1836,9 +1837,10 @@ function renderProj(){
   // Agregar eventos futuros
   eventosIngresos.forEach(ev=>{ if(ev.mes>=1&&ev.mes<=12) baseIng[ev.mes-1]+=ev.monto; });
   eventosGastos.forEach(ev=>{ if(ev.mes>=1&&ev.mes<=12) baseGastos[ev.mes-1]+=ev.monto; });
-  const labels=MESES.slice(3,3+n);
-  const gastos=baseGastos.slice(3,3+n);
-  const ing=baseIng.slice(3,3+n);
+  const mesIdx = mesActualPj - 1; // 0-based index del mes actual
+  const labels=MESES.slice(mesIdx,mesIdx+n);
+  const gastos=baseGastos.slice(mesIdx,mesIdx+n);
+  const ing=baseIng.slice(mesIdx,mesIdx+n);
   const max=Math.max(...gastos);
   const container=document.getElementById('proj-months');
   const cols=Math.min(n,6);
@@ -1846,7 +1848,8 @@ function renderProj(){
   container.innerHTML=gastos.slice(0,cols).map((v,i)=>{
     const pct=Math.round(v/max*100);
     const color=v>180000?'var(--red)':v>150000?'var(--amber)':'var(--green)';
-    const hasEv=eventosGastos.some(e=>e.mes===i+4)||eventosIngresos.some(e=>e.mes===i+4);
+    const mesDibujo = mesIdx+1+i; // mes real (1-based)
+    const hasEv=eventosGastos.some(e=>e.mes===mesDibujo)||eventosIngresos.some(e=>e.mes===mesDibujo);
     return `<div class="proj-m ${i===0?'hoy':''}">
       <div class="proj-m-nm">${labels[i]}</div>
       <div class="proj-m-v" style="color:${color}">$${(v/1000).toFixed(0)}k</div>
@@ -1859,8 +1862,8 @@ function renderProj(){
   // Cuotas comprometidas desde GASTOS_CACHE — gastos con cuota_actual < total_cuotas
   const cuotasMap = {};
   GASTOS_CACHE.forEach(g=>{
-    const ca=parseInt(g.cuota_actual||g.raw?.cuota_actual||0);
-    const ct=parseInt(g.total_cuotas||g.raw?.total_cuotas||0);
+    const ca=parseInt(g.raw?.cuota_actual||g.cuota_actual||0);
+    const ct=parseInt(g.raw?.total_cuotas||g.total_cuotas||0);
     if(!ca||!ct||ca>=ct) return;
     const nm = (g.desc||g.descripcion||'').replace(/\s*\(cuota.*\)/i,'').trim();
     if(!cuotasMap[nm]||ca>cuotasMap[nm].ca){
@@ -2177,15 +2180,48 @@ async function syncSheets(btn, from){
 function dl(tipo, mesVal){
   // Construir contenido HTML del reporte
   const mesEl = document.getElementById('mes-sel');
-  const mesLabel = mesEl ? mesEl.options[mesEl.selectedIndex].text : 'Mes actual';
-  const mesActual=new Date().getMonth()+1, anioActual=new Date().getFullYear();
-  const gastosDelMes=GASTOS_CACHE.filter(g=>{const p=String(g.fecha||'').split('/');return parseInt(p[1])===mesActual&&parseInt(p[2])===anioActual;});
-  const ingresosDelMes=INGRESOS_CACHE.filter(i=>{const p=String(i.fecha||'').split('/');return parseInt(p[1])===mesActual&&parseInt(p[2])===anioActual;});
+  const mesLabel = mesEl ? mesEl.options[mesEl.selectedIndex]?.text || 'Mes actual' : 'Mes actual';
+
+  // Para reporte anual: leer el select de año del card de reporte anual
+  let anioReporte = new Date().getFullYear();
+  if(tipo === 'anual'){
+    // Buscar el select de año en el card de reporte anual
+    const repCards = document.querySelectorAll('.rep-card');
+    repCards.forEach(card=>{
+      if(card.querySelector('.rep-nm')?.textContent?.includes('anual')){
+        const sel = card.querySelector('select.form-sel');
+        if(sel && sel.value) anioReporte = parseInt(sel.value);
+      }
+    });
+  }
+
+  // Para reporte mensual: leer mes/año del selector
+  let mesActual, anioActual;
+  if(tipo === 'anual'){
+    mesActual = null; anioActual = anioReporte;
+  } else {
+    const {mes, anio} = getMesAnioSel();
+    mesActual = mes; anioActual = anio;
+  }
+
+  // Filtrar gastos e ingresos según el tipo de reporte
+  let gastosDelMes, ingresosDelMes;
+  if(tipo === 'anual'){
+    gastosDelMes   = GASTOS_CACHE.filter(g=>{const p=String(g.fecha||'').split('/');return parseInt(p[2])===anioActual;});
+    ingresosDelMes = INGRESOS_CACHE.filter(i=>{const p=String(i.fecha||'').split('/');return parseInt(p[2])===anioActual;});
+  } else {
+    gastosDelMes   = GASTOS_CACHE.filter(g=>{const p=String(g.fecha||'').split('/');return parseInt(p[1])===mesActual&&parseInt(p[2])===anioActual;});
+    ingresosDelMes = INGRESOS_CACHE.filter(i=>{const p=String(i.fecha||'').split('/');return parseInt(p[1])===mesActual&&parseInt(p[2])===anioActual;});
+  }
+
   const totalG=gastosDelMes.reduce((s,g)=>s+g.monto,0);
   const totalI=ingresosDelMes.reduce((s,i)=>s+parseFloat(i.monto||0),0);
 
+  // Título del reporte
+  const tituloRep = tipo==='anual' ? `Anual ${anioActual}` : mesLabel;
+
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
-  <title>Chanchito — ${mesLabel}</title>
+  <title>Chanchito — ${tituloRep}</title>
   <style>
     body{font-family:sans-serif;padding:32px;color:#1a1714;font-size:13px}
     h1{font-size:20px;margin-bottom:4px}
@@ -2201,7 +2237,7 @@ function dl(tipo, mesVal){
     h2{font-size:14px;margin:20px 0 10px}
     .footer{margin-top:32px;font-size:10px;color:#aaa;border-top:1px solid #e2ddd6;padding-top:12px}
   </style></head><body>
-  <h1>🐷 Chanchito — Reporte ${tipo==='anual'?'Anual '+anioActual:mesLabel}</h1>
+  <h1>🐷 Chanchito — Reporte ${tituloRep}</h1>
   <div class="sub">Generado el ${new Date().toLocaleDateString('es-AR')} · Portal de Rocío</div>
   <div class="metrics">
     <div class="m"><div class="m-label">Ingresos</div><div class="m-val blue">$${totalI.toLocaleString('es-AR')}</div></div>
@@ -2271,10 +2307,11 @@ function initCharts(){
   });
 
   // Proyección
+  const mesInicioProj = new Date().getMonth(); // 0-based
   charts.proj=new Chart(document.getElementById('ch-proj'),{
     type:'line',
     data:{
-      labels:MESES.slice(3,9),
+      labels:MESES.slice(mesInicioProj,mesInicioProj+6),
       datasets:[
         {label:'Ingresos',data:[0,0,0,0,0,0],borderColor:'#1a6fb5',backgroundColor:'rgba(26,111,181,.07)',tension:.35,pointBackgroundColor:'#1a6fb5',pointRadius:4,fill:true},
         {label:'Gastos',data:[0,0,0,0,0,0],borderColor:'#d63a3a',backgroundColor:'rgba(214,58,58,.06)',tension:.35,pointBackgroundColor:'#d63a3a',pointRadius:4,fill:true,borderDash:[5,3]}
@@ -2575,9 +2612,60 @@ function toggleArchivados(){
 }
 
 function exportCalendario(){
-  const year = document.getElementById('cal-year').value;
-  toast(`↓ Exportando calendario ${year} a Excel...`,'info');
-  setTimeout(()=>toast('✓ Archivo listo para descargar','success'),1200);
+  const year = parseInt(document.getElementById('cal-year').value || 2026);
+  toast(`↓ Generando Excel del calendario ${year}...`,'info');
+
+  const MESES_NOM = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const pagosActivos = PAGOS_FIJOS.filter(p => !ARCHIVADOS.has(p.id));
+
+  // Encabezados: Mes + nombre de cada pago
+  const headers = ['Mes', ...pagosActivos.map(p => p.nombre)];
+
+  // Filas: una por mes
+  const rows = MESES_NOM.map((nm, idx) => {
+    const mes = idx + 1;
+    const row = [nm];
+    pagosActivos.forEach(p => {
+      const aplica = mes >= p.desde && mes <= p.hasta;
+      if (!aplica) { row.push('N/A'); return; }
+      row.push(isPaid(p.id, year, mes) ? 'Pagado' : 'Pendiente');
+    });
+    return row;
+  });
+
+  // Fila de montos
+  const montoRow = ['Monto mensual', ...pagosActivos.map(p => p.monto > 0 ? p.monto : 'Variable')];
+
+  // Resumen
+  let totalMes = 0;
+  const mesHoy = new Date().getMonth() + 1;
+  const anioHoy = new Date().getFullYear();
+  if (year === anioHoy) {
+    pagosActivos.forEach(p => {
+      if (mesHoy >= p.desde && mesHoy <= p.hasta && p.monto > 0) totalMes += p.monto;
+    });
+  }
+
+  const wb = XLSX.utils.book_new();
+  const wsData = [
+    [`Calendario de Pagos ${year} — Chanchito 🐷`],
+    [],
+    headers,
+    montoRow,
+    [],
+    ...rows,
+    [],
+    [`Compromiso mensual estimado: $${totalMes.toLocaleString('es-AR')}`],
+    [`Exportado: ${new Date().toLocaleDateString('es-AR')}`]
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+  // Anchos de columna
+  ws['!cols'] = [{ wch: 14 }, ...pagosActivos.map(() => ({ wch: 13 }))];
+
+  XLSX.utils.book_append_sheet(wb, ws, `Calendario ${year}`);
+  XLSX.writeFile(wb, `chanchito-calendario-${year}.xlsx`);
+  setTimeout(()=>toast('✓ Archivo listo para descargar 🐷','success'), 400);
 }
 
 // Cerrar modal al hacer click fuera
