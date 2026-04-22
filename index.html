@@ -742,9 +742,9 @@ textarea{resize:vertical;min-height:68px}
         <div class="rep-nm">Reporte anual</div>
         <div class="rep-desc">Evolución mensual, ahorro acumulado y proyección de cierre de año.</div>
         <div class="rep-actions">
-          <select class="form-sel"><option>2026</option><option>2025</option></select>
+          <select class="form-sel" id="rep-anio-sel"><option value="2026">2026</option><option value="2025">2025</option><option value="2024">2024</option></select>
           <button class="btn btn-primary btn-sm" onclick="dl('anual')">↓ PDF</button>
-          <button class="btn btn-ghost btn-sm" onclick="dl('Reporte anual Excel')">↓ Excel</button>
+          <button class="btn btn-ghost btn-sm" onclick="dl('anualExcel')">↓ Excel</button>
         </div>
       </div>
       <div class="rep-card">
@@ -1241,6 +1241,7 @@ function nav(id,el){
 
 // ══════ INIT ══════
 function initAll(){
+  fillMesSel();      // FIX: poblar selector SIEMPRE con mes actual antes de Sheets
   renderCatList();
   renderGastos();
   renderPresupuesto();
@@ -1251,7 +1252,7 @@ function initAll(){
   fillRepCatSel();
   setTodayDate();
   initCharts();
-  impInitDragDrop(); // inicializar drag&drop del importador
+  impInitDragDrop();
 }
 
 // ══════ LOAD FROM SHEETS — carga TODO desde Sheets ══════
@@ -1828,12 +1829,33 @@ function renderProj(){
   });
   const mesesConDatos = Object.values(gastosPorMes);
   const promedioGasto = mesesConDatos.length ? Math.round(mesesConDatos.reduce((a,b)=>a+b,0)/mesesConDatos.length) : 0;
-  const ingresosReales = INGRESOS_CACHE.length ? Math.round(INGRESOS_CACHE.reduce((s,i)=>s+parseFloat(i.monto||0),0)/Math.max(1,new Set(INGRESOS_CACHE.map(i=>String(i.fecha||'').split('/').slice(1).join('/'))).size)) : 0;
+
+  // Calcular ingresos reales por mes
+  const ingresosPorMes = {};
+  INGRESOS_CACHE.forEach(i=>{
+    const p=String(i.fecha||'').split('/');
+    if(p.length<3) return;
+    const k=p[2]+'-'+p[1].padStart(2,'0');
+    ingresosPorMes[k]=(ingresosPorMes[k]||0)+parseFloat(i.monto||0);
+  });
+  const mesesIngDatos = Object.values(ingresosPorMes);
+  const promedioIngreso = mesesIngDatos.length ? Math.round(mesesIngDatos.reduce((a,b)=>a+b,0)/mesesIngDatos.length) : 0;
+
   const baseGastos = Array(12).fill(promedioGasto);
-  const baseIng    = Array(12).fill(ingresosReales);
-  // Mes actual con gasto real
-  const gastoMesActual = (gastosPorMes[anioActualPj+'-'+String(mesActualPj).padStart(2,'0')])||0;
-  if(gastoMesActual>0) baseGastos[mesActualPj-1]=gastoMesActual;
+  const baseIng    = Array(12).fill(promedioIngreso);
+
+  // Mes actual con datos reales (gasto e ingreso)
+  const gastoMesActual = gastosPorMes[anioActualPj+'-'+String(mesActualPj).padStart(2,'0')] || 0;
+  const ingresoMesActual = ingresosPorMes[anioActualPj+'-'+String(mesActualPj).padStart(2,'0')] || 0;
+  if(gastoMesActual>0) baseGastos[mesActualPj-1] = gastoMesActual;
+  if(ingresoMesActual>0) baseIng[mesActualPj-1] = ingresoMesActual;
+
+  // Usar ingresos reales para meses pasados también
+  Object.entries(ingresosPorMes).forEach(([k,v])=>{
+    const [yy,mm] = k.split('-');
+    const idx = parseInt(mm)-1;
+    if(parseInt(yy)===anioActualPj && idx>=0 && idx<12) baseIng[idx]=v;
+  });
   // Agregar eventos futuros
   eventosIngresos.forEach(ev=>{ if(ev.mes>=1&&ev.mes<=12) baseIng[ev.mes-1]+=ev.monto; });
   eventosGastos.forEach(ev=>{ if(ev.mes>=1&&ev.mes<=12) baseGastos[ev.mes-1]+=ev.monto; });
@@ -2177,65 +2199,96 @@ async function syncSheets(btn, from){
 }
 
 // ══════ REPORTES ══════
-function dl(tipo, mesVal){
-  // Construir contenido HTML del reporte
-  const mesEl = document.getElementById('mes-sel');
-  const mesLabel = mesEl ? mesEl.options[mesEl.selectedIndex]?.text || 'Mes actual' : 'Mes actual';
+function dl(tipo){
+  const MESES_NOM = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
-  // Para reporte anual: leer el select de año del card de reporte anual
-  let anioReporte = new Date().getFullYear();
-  if(tipo === 'anual'){
-    // Buscar el select de año en el card de reporte anual
-    const repCards = document.querySelectorAll('.rep-card');
-    repCards.forEach(card=>{
-      if(card.querySelector('.rep-nm')?.textContent?.includes('anual')){
-        const sel = card.querySelector('select.form-sel');
-        if(sel && sel.value) anioReporte = parseInt(sel.value);
-      }
-    });
-  }
+  // ── Determinar período a reportar
+  const esAnual = (tipo === 'anual' || tipo === 'anualExcel');
+  let mesActual, anioActual, tituloRep;
 
-  // Para reporte mensual: leer mes/año del selector
-  let mesActual, anioActual;
-  if(tipo === 'anual'){
-    mesActual = null; anioActual = anioReporte;
+  if(esAnual){
+    const selAnio = document.getElementById('rep-anio-sel');
+    anioActual = selAnio ? parseInt(selAnio.value) || new Date().getFullYear() : new Date().getFullYear();
+    mesActual  = null;
+    tituloRep  = `Anual ${anioActual}`;
   } else {
     const {mes, anio} = getMesAnioSel();
-    mesActual = mes; anioActual = anio;
+    mesActual  = mes;
+    anioActual = anio;
+    const mesEl = document.getElementById('mes-sel');
+    tituloRep  = mesEl ? (mesEl.options[mesEl.selectedIndex]?.text || MESES_NOM[mes-1]+' '+anio) : MESES_NOM[mes-1]+' '+anio;
   }
 
-  // Filtrar gastos e ingresos según el tipo de reporte
-  let gastosDelMes, ingresosDelMes;
-  if(tipo === 'anual'){
-    gastosDelMes   = GASTOS_CACHE.filter(g=>{const p=String(g.fecha||'').split('/');return parseInt(p[2])===anioActual;});
-    ingresosDelMes = INGRESOS_CACHE.filter(i=>{const p=String(i.fecha||'').split('/');return parseInt(p[2])===anioActual;});
-  } else {
-    gastosDelMes   = GASTOS_CACHE.filter(g=>{const p=String(g.fecha||'').split('/');return parseInt(p[1])===mesActual&&parseInt(p[2])===anioActual;});
-    ingresosDelMes = INGRESOS_CACHE.filter(i=>{const p=String(i.fecha||'').split('/');return parseInt(p[1])===mesActual&&parseInt(p[2])===anioActual;});
+  // ── Filtrar datos
+  const gastosDelRep = GASTOS_CACHE.filter(g=>{
+    const p = String(g.fecha||'').split('/');
+    if(p.length < 3) return false;
+    if(esAnual) return parseInt(p[2]) === anioActual;
+    return parseInt(p[1]) === mesActual && parseInt(p[2]) === anioActual;
+  });
+  const ingresosDelRep = INGRESOS_CACHE.filter(i=>{
+    const p = String(i.fecha||'').split('/');
+    if(p.length < 3) return false;
+    if(esAnual) return parseInt(p[2]) === anioActual;
+    return parseInt(p[1]) === mesActual && parseInt(p[2]) === anioActual;
+  });
+
+  const totalG = gastosDelRep.reduce((s,g)=>s+g.monto, 0);
+  const totalI = ingresosDelRep.reduce((s,i)=>s+parseFloat(i.monto||0), 0);
+
+  // ── Excel para reporte anual
+  if(tipo === 'anualExcel'){
+    const wb = XLSX.utils.book_new();
+    // Hoja de gastos
+    const gastosRows = [['Fecha','Descripción','Categoría','Medio','Cuotas','Monto'],
+      ...gastosDelRep.map(g=>[g.fecha, g.desc, g.cat, g.medio||'—', g.cuotas||'—', g.monto])];
+    const wsG = XLSX.utils.aoa_to_sheet(gastosRows);
+    XLSX.utils.book_append_sheet(wb, wsG, 'Gastos');
+    // Hoja de ingresos
+    const ingRows = [['Fecha','Descripción','Categoría','Monto'],
+      ...ingresosDelRep.map(i=>[i.fecha, i.descripcion||'—', i.categoria||'—', parseFloat(i.monto||0)])];
+    const wsI = XLSX.utils.aoa_to_sheet(ingRows);
+    XLSX.utils.book_append_sheet(wb, wsI, 'Ingresos');
+    // Hoja resumen por mes
+    const resumenRows = [['Mes','Gastos','Ingresos','Balance']];
+    for(let m=1;m<=12;m++){
+      const gM = GASTOS_CACHE.filter(g=>{const p=String(g.fecha||'').split('/');return parseInt(p[1])===m&&parseInt(p[2])===anioActual;}).reduce((s,g)=>s+g.monto,0);
+      const iM = INGRESOS_CACHE.filter(i=>{const p=String(i.fecha||'').split('/');return parseInt(p[1])===m&&parseInt(p[2])===anioActual;}).reduce((s,i)=>s+parseFloat(i.monto||0),0);
+      if(gM>0||iM>0) resumenRows.push([MESES_NOM[m-1], gM, iM, iM-gM]);
+    }
+    const wsR = XLSX.utils.aoa_to_sheet(resumenRows);
+    XLSX.utils.book_append_sheet(wb, wsR, 'Resumen mensual');
+    XLSX.writeFile(wb, `chanchito-${anioActual}.xlsx`);
+    toast(`✓ Excel ${anioActual} descargado 🐷`, 'success');
+    return;
   }
 
-  const totalG=gastosDelMes.reduce((s,g)=>s+g.monto,0);
-  const totalI=ingresosDelMes.reduce((s,i)=>s+parseFloat(i.monto||0),0);
+  // ── HTML para PDF (mensual o anual)
+  const tablaGastos = gastosDelRep.length
+    ? gastosDelRep.map(g=>`<tr><td>${g.fecha}</td><td>${g.desc}</td><td>${g.cat}</td><td>${g.medio||'—'}</td><td>${g.cuotas||'—'}</td><td style="text-align:right;font-family:monospace">$${g.monto.toLocaleString('es-AR')}</td></tr>`).join('')
+    : '<tr><td colspan="6" style="color:#aaa;text-align:center;padding:16px">Sin gastos en este período</td></tr>';
 
-  // Título del reporte
-  const tituloRep = tipo==='anual' ? `Anual ${anioActual}` : mesLabel;
+  const tablaIngresos = ingresosDelRep.length
+    ? ingresosDelRep.map(i=>`<tr><td>${i.fecha}</td><td>${i.descripcion||'—'}</td><td>${i.categoria||'—'}</td><td style="text-align:right;font-family:monospace">$${parseFloat(i.monto||0).toLocaleString('es-AR')}</td></tr>`).join('')
+    : '<tr><td colspan="4" style="color:#aaa;text-align:center;padding:16px">Sin ingresos en este período</td></tr>';
 
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
-  <title>Chanchito — ${tituloRep}</title>
+  <title>Chanchito — Reporte ${tituloRep}</title>
   <style>
-    body{font-family:sans-serif;padding:32px;color:#1a1714;font-size:13px}
-    h1{font-size:20px;margin-bottom:4px}
+    body{font-family:sans-serif;padding:32px;color:#1a1714;font-size:13px;max-width:900px;margin:0 auto}
+    h1{font-size:20px;margin-bottom:4px;color:#1a1714}
     .sub{color:#888;margin-bottom:24px;font-size:12px}
-    .metrics{display:flex;gap:16px;margin-bottom:24px}
-    .m{border:1px solid #e2ddd6;border-radius:8px;padding:12px 16px;flex:1}
+    .metrics{display:flex;gap:16px;margin-bottom:28px}
+    .m{border:1px solid #e2ddd6;border-radius:8px;padding:14px 18px;flex:1}
     .m-label{font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
-    .m-val{font-size:20px;font-weight:700;font-family:monospace}
+    .m-val{font-size:22px;font-weight:700;font-family:monospace}
     .green{color:#1a9e5c}.red{color:#d63a3a}.blue{color:#1a6fb5}
     table{width:100%;border-collapse:collapse;margin-bottom:24px}
-    th{text-align:left;padding:8px 10px;font-size:10px;text-transform:uppercase;color:#888;border-bottom:2px solid #e2ddd6}
+    th{text-align:left;padding:8px 10px;font-size:10px;text-transform:uppercase;color:#888;border-bottom:2px solid #e2ddd6;white-space:nowrap}
     td{padding:8px 10px;border-bottom:1px solid #e2ddd6;font-size:12px}
-    h2{font-size:14px;margin:20px 0 10px}
+    h2{font-size:14px;margin:24px 0 10px;color:#1a1714;font-weight:700}
     .footer{margin-top:32px;font-size:10px;color:#aaa;border-top:1px solid #e2ddd6;padding-top:12px}
+    @media print{body{padding:16px}}
   </style></head><body>
   <h1>🐷 Chanchito — Reporte ${tituloRep}</h1>
   <div class="sub">Generado el ${new Date().toLocaleDateString('es-AR')} · Portal de Rocío</div>
@@ -2244,24 +2297,22 @@ function dl(tipo, mesVal){
     <div class="m"><div class="m-label">Gastos</div><div class="m-val red">$${totalG.toLocaleString('es-AR')}</div></div>
     <div class="m"><div class="m-label">Balance</div><div class="m-val ${totalI-totalG>=0?'green':'red'}">$${(totalI-totalG).toLocaleString('es-AR')}</div></div>
   </div>
-  <h2>Gastos del mes</h2>
-  <table><thead><tr><th>Fecha</th><th>Descripción</th><th>Categoría</th><th>Medio</th><th>Cuotas</th><th>Monto</th></tr></thead>
-  <tbody>${gastosDelMes.length?gastosDelMes.map(g=>`<tr><td>${g.fecha}</td><td>${g.desc}</td><td>${g.cat}</td><td>${g.medio||'—'}</td><td>${g.cuotas}</td><td>$${g.monto.toLocaleString('es-AR')}</td></tr>`).join(''):'<tr><td colspan="6" style="color:#aaa;text-align:center">Sin gastos este mes</td></tr>'}</tbody>
-  </table>
-  <h2>Ingresos del mes</h2>
-  <table><thead><tr><th>Fecha</th><th>Descripción</th><th>Categoría</th><th>Monto</th></tr></thead>
-  <tbody>${ingresosDelMes.length?ingresosDelMes.map(i=>`<tr><td>${i.fecha}</td><td>${i.descripcion||'—'}</td><td>${i.categoria||'—'}</td><td>$${parseFloat(i.monto||0).toLocaleString('es-AR')}</td></tr>`).join(''):'<tr><td colspan="4" style="color:#aaa;text-align:center">Sin ingresos este mes</td></tr>'}</tbody>
-  </table>
-  <div class="footer">Chanchito 🐷 · Exportado desde el portal de finanzas</div>
+  <h2>Gastos${esAnual?' del año':' del mes'} (${gastosDelRep.length} movimientos)</h2>
+  <table><thead><tr><th>Fecha</th><th>Descripción</th><th>Categoría</th><th>Medio</th><th>Cuotas</th><th style="text-align:right">Monto</th></tr></thead>
+  <tbody>${tablaGastos}</tbody></table>
+  <h2>Ingresos${esAnual?' del año':' del mes'} (${ingresosDelRep.length} movimientos)</h2>
+  <table><thead><tr><th>Fecha</th><th>Descripción</th><th>Categoría</th><th style="text-align:right">Monto</th></tr></thead>
+  <tbody>${tablaIngresos}</tbody></table>
+  <div class="footer">Chanchito 🐷 · Exportado desde el portal de finanzas · ${new Date().toLocaleString('es-AR')}</div>
   </body></html>`;
 
   const win = window.open('','_blank');
-  if(!win){ toast('❌ Bloqueaste las ventanas emergentes — permitilas para descargar PDF','error'); return; }
+  if(!win){ toast('❌ Permitir ventanas emergentes para descargar PDF','error'); return; }
   win.document.write(html);
   win.document.close();
   win.focus();
-  setTimeout(()=>{ win.print(); }, 400);
-  toast('✓ Reporte abierto — usá Ctrl+P / Guardar como PDF','success');
+  setTimeout(()=>{ win.print(); }, 500);
+  toast('✓ Reporte abierto — Ctrl+P para guardar como PDF','success');
 }
 
 // ══════ CHARTS ══════
