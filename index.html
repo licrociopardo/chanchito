@@ -6,306 +6,6 @@
 <title>Chanchito 🐷 — Rocío</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<script>
-// ══════ IMPORTAR / EXPORTAR ══════
-let impWorkbook=null, impActiveSheet=null, impRawData=[], impHeaders=[], impProcessed=[];
-const IMP_REQ = ['imap-fecha','imap-monto','imap-desc'];
-const CHANCHITO_COLS_IMP = ['id','fecha','descripcion','categoria','monto','medio_pago','asignado_a','cuota_actual','total_cuotas','notas','fecha_carga','cargado_por'];
-const MESES_IMP = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-
-// Drag & drop
-(function(){
-  const dz = document.getElementById('imp-dropzone');
-  dz.addEventListener('dragover', e=>{ e.preventDefault(); dz.classList.add('drag-over'); });
-  dz.addEventListener('dragleave', ()=>dz.classList.remove('drag-over'));
-  dz.addEventListener('drop', e=>{ e.preventDefault(); dz.classList.remove('drag-over'); impHandleFile(e.dataTransfer.files[0]); });
-})();
-
-function impHandleFile(file){
-  if(!file) return;
-  const ext = file.name.split('.').pop().toLowerCase();
-  if(!['xlsx','xls','csv'].includes(ext)){ toast('❌ Formato no soportado','error'); return; }
-  toast('📊 Leyendo archivo...','info');
-  const reader = new FileReader();
-  reader.onload = e => {
-    try {
-      impWorkbook = ext==='csv'
-        ? XLSX.read(e.target.result,{type:'string',raw:true})
-        : XLSX.read(e.target.result,{type:'array',cellDates:true});
-      impSetupSheets(file.name, file.size);
-      impGoStep(2);
-      toast('✓ Archivo leído','success');
-    } catch(err){ toast('❌ '+err.message,'error'); }
-  };
-  ext==='csv' ? reader.readAsText(file) : reader.readAsArrayBuffer(file);
-}
-
-function impSetupSheets(name, size){
-  const sheets = impWorkbook.SheetNames;
-  document.getElementById('imp-file-bar').innerHTML = `
-    <div class="imp-file-info">
-      <span style="font-size:22px">📊</span>
-      <div><div style="font-size:13px;font-weight:600;color:var(--green)">${name}</div>
-      <div style="font-size:11px;color:var(--text3)">${sheets.length} hoja${sheets.length>1?'s':''} · ${(size/1024).toFixed(1)} KB</div></div>
-    </div>`;
-  const card = document.getElementById('imp-sheet-card');
-  const tabs = document.getElementById('imp-sheet-tabs');
-  if(sheets.length>1){
-    card.style.display='block';
-    tabs.innerHTML = sheets.map((s,i)=>`<div class="sheet-tab ${i===0?'active':''}" onclick="impSelectSheet('${s}',this)">${s}</div>`).join('');
-  } else { card.style.display='none'; }
-  impActiveSheet = sheets[0];
-  impLoadData();
-}
-
-function impSelectSheet(name,el){
-  document.querySelectorAll('#imp-sheet-tabs .sheet-tab').forEach(t=>t.classList.remove('active'));
-  el.classList.add('active');
-  impActiveSheet = name;
-  impLoadData();
-}
-
-function impReload(){ impLoadData(); }
-
-function impLoadData(){
-  const hrow = parseInt(document.getElementById('imp-hrow').value);
-  const ws = impWorkbook.Sheets[impActiveSheet];
-  const all = XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:false});
-  if(all.length<=hrow){ toast('La hoja parece vacía','warn'); return; }
-  impHeaders = all[hrow].map((h,i)=>h!==''?String(h):`Col_${i+1}`);
-  impRawData = all.slice(hrow+1).filter(r=>r.some(c=>c!==''));
-  document.getElementById('imp-raw-count').textContent = `${impRawData.length} filas de datos`;
-  // Raw preview
-  const prev8 = impRawData.slice(0,7);
-  document.getElementById('imp-raw-prev').innerHTML = `<table>
-    <thead><tr>${impHeaders.map(h=>`<th>${h}</th>`).join('')}</tr></thead>
-    <tbody>${prev8.map(r=>`<tr>${impHeaders.map((_,i)=>`<td>${r[i]??''}</td>`).join('')}</tr>`).join('')}</tbody>
-  </table>`;
-  // Fill selects
-  const opts = ['<option value="">— sin mapear —</option>',...impHeaders.map((h,i)=>`<option value="${i}">${h}</option>`)].join('');
-  ['imap-fecha','imap-monto','imap-desc','imap-cat','imap-medio','imap-asig','imap-cuotas','imap-notas']
-    .forEach(id=>{ document.getElementById(id).innerHTML=opts; });
-  impAutoMap();
-  impCheckAllMaps();
-}
-
-function impAutoMap(){
-  const patterns = {
-    'imap-fecha':  ['fecha','date','día','dia','fec'],
-    'imap-monto':  ['monto','importe','amount','valor','total','débito','debito','$','pesos'],
-    'imap-desc':   ['descripcion','descripción','concepto','detalle','gasto','item','motivo'],
-    'imap-cat':    ['categoria','categoría','category','rubro','tipo'],
-    'imap-medio':  ['medio','pago','tarjeta','banco','payment','forma'],
-    'imap-asig':   ['asignado','persona','quien','usuario'],
-    'imap-cuotas': ['cuota','cuotas','installment'],
-    'imap-notas':  ['nota','notas','note','obs','comentario'],
-  };
-  impHeaders.forEach((h,i)=>{
-    const hl = h.toLowerCase();
-    Object.entries(patterns).forEach(([id,words])=>{
-      if(words.some(w=>hl.includes(w))){
-        const sel=document.getElementById(id);
-        if(sel&&sel.value===''){sel.value=String(i);impCheckMap(sel,id);}
-      }
-    });
-  });
-}
-
-function impCheckMap(sel,id){
-  sel.classList.toggle('mapped',sel.value!=='');
-  sel.classList.toggle('need',sel.value===''&&IMP_REQ.includes(id));
-  impCheckAllMaps();
-}
-
-function impCheckAllMaps(){
-  const ok = IMP_REQ.every(id=>document.getElementById(id).value!=='');
-  document.getElementById('imp-btn-validar').disabled=!ok;
-}
-
-function impParseFecha(val,fmt){
-  if(!val&&val!==0) return null;
-  if(typeof val==='number'||fmt==='serial'){
-    const n=parseInt(val);
-    if(n>1000&&n<100000){const d=new Date(Date.UTC(1900,0,n-1));return impPad(d.getUTCDate())+'/'+impPad(d.getUTCMonth()+1)+'/'+d.getUTCFullYear();}
-  }
-  const s=String(val).trim();
-  if(s.match(/^\d{4}-\d{2}-\d{2}/)){const[y,m,d]=s.split('T')[0].split('-');return d+'/'+m+'/'+y;}
-  const m1=s.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})$/);
-  if(m1){
-    let[,a,b,y]=m1;const yr=y.length===2?'20'+y:y;
-    if(fmt==='mdy') return impPad(b)+'/'+impPad(a)+'/'+yr;
-    return impPad(a)+'/'+impPad(b)+'/'+yr;
-  }
-  if(fmt==='ymd'){const m2=s.match(/^(\d{4})[\/\-\.](\d{2})[\/\-\.](\d{2})$/);if(m2){const[,y,mo,d]=m2;return d+'/'+mo+'/'+y;}}
-  return null;
-}
-
-function impParseMonto(val,sign,dec){
-  if(val===''||val===null||val===undefined) return null;
-  let s=String(val).trim().replace(/[$\s]/g,'');
-  if(dec==='comma'||(dec==='auto'&&s.includes(',')&&!s.includes('.'))){s=s.replace(/\./g,'').replace(',','.');}
-  else{s=s.replace(/,/g,'');}
-  const n=parseFloat(s);
-  if(isNaN(n)) return null;
-  if(sign==='mixed') return n>0?n:null;
-  return Math.abs(n);
-}
-
-function impValidar(){
-  const m={
-    fecha:  document.getElementById('imap-fecha').value,
-    monto:  document.getElementById('imap-monto').value,
-    desc:   document.getElementById('imap-desc').value,
-    cat:    document.getElementById('imap-cat').value,
-    medio:  document.getElementById('imap-medio').value,
-    asig:   document.getElementById('imap-asig').value,
-    cuotas: document.getElementById('imap-cuotas').value,
-    notas:  document.getElementById('imap-notas').value,
-  };
-  const dateFmt = document.getElementById('itf-date').value;
-  const sign    = document.getElementById('itf-sign').value;
-  const dec     = document.getElementById('itf-dec').value;
-  const catDef  = document.getElementById('itf-cat').value||'Sin categoría';
-  const asigDef = document.getElementById('itf-asig').value;
-  const desde   = document.getElementById('itf-desde').value;
-  const hasta   = document.getElementById('itf-hasta').value;
-
-  const issues=[]; impProcessed=[];
-  impRawData.forEach((row,idx)=>{
-    const rn=idx+2;
-    const fecha  = impParseFecha(m.fecha!==''?row[m.fecha]:'', dateFmt);
-    const monto  = impParseMonto(m.monto!==''?row[m.monto]:'', sign, dec);
-    const desc   = String(m.desc!==''?row[m.desc]:'').trim();
-    const hasErr = !fecha||monto===null;
-    if(!fecha) issues.push({t:'err',msg:`Fila ${rn}: fecha inválida ("${m.fecha!==''?row[m.fecha]:''}")`});
-    if(monto===null) issues.push({t:'err',msg:`Fila ${rn}: monto inválido ("${m.monto!==''?row[m.monto]:''}")`});
-    if(!desc) issues.push({t:'warn',msg:`Fila ${rn}: descripción vacía`});
-    // Period filter
-    if(fecha&&(desde||hasta)){const[d,mo,y]=fecha.split('/');const ym=y+'-'+mo;if(desde&&ym<desde)return;if(hasta&&ym>hasta)return;}
-    const cs=String(m.cuotas!==''?row[m.cuotas]:'').trim();
-    let ca='',ct='';
-    if(cs.includes('/')){[ca,ct]=cs.split('/');}else if(cs){ca=cs;}
-    impProcessed.push({
-      id:'imp_'+Date.now()+'_'+idx,
-      fecha:fecha||'ERROR',
-      descripcion:desc||'(sin descripción)',
-      categoria:String(m.cat!==''?row[m.cat]:'').trim()||catDef,
-      monto:monto!==null?monto:0,
-      medio_pago:String(m.medio!==''?row[m.medio]:'').trim(),
-      asignado_a:String(m.asig!==''?row[m.asig]:'').trim()||asigDef,
-      cuota_actual:ca, total_cuotas:ct,
-      notas:String(m.notas!==''?row[m.notas]:'').trim(),
-      fecha_carga:impNow(), cargado_por:'importacion',
-      _err:hasErr, _warn:!desc
-    });
-  });
-
-  const errs=issues.filter(i=>i.t==='err').length;
-  const warns=issues.filter(i=>i.t==='warn').length;
-  const ok=impProcessed.filter(r=>!r._err).length;
-  // Val grid
-  document.getElementById('imp-val-grid').innerHTML=`
-    <div class="val-box vinfo"><div class="val-num vinfo">${impProcessed.length}</div><div class="val-lbl">Total filas</div></div>
-    <div class="val-box vok"><div class="val-num vok">${ok}</div><div class="val-lbl">Válidas</div></div>
-    <div class="val-box vwarn"><div class="val-num vwarn">${warns}</div><div class="val-lbl">Advertencias</div></div>
-    <div class="val-box verr"><div class="val-num verr">${errs}</div><div class="val-lbl">Errores</div></div>`;
-  // Issues
-  const il=document.getElementById('imp-issues');
-  il.innerHTML=issues.length===0
-    ?'<div class="iss iok">✓ Sin problemas — todos los datos están listos para exportar</div>'
-    :issues.slice(0,25).map(i=>`<div class="iss ${i.t==='err'?'ierr':'iwarn'}">⚠ ${i.msg}</div>`).join('');
-  // Result preview
-  document.getElementById('imp-res-prev').innerHTML=`<table>
-    <thead><tr><th>fecha</th><th>descripcion</th><th>categoria</th><th>monto</th><th>medio_pago</th><th>asignado_a</th><th>cuota</th></tr></thead>
-    <tbody>${impProcessed.slice(0,10).map(r=>`<tr>
-      <td class="${r._err?'cell-err':''}">${r.fecha}</td>
-      <td><strong>${r.descripcion}</strong></td>
-      <td><span style="background:var(--bg3);padding:2px 7px;border-radius:10px;font-size:10px;font-weight:600">${r.categoria}</span></td>
-      <td class="mono">$${Number(r.monto).toLocaleString('es-AR')}</td>
-      <td>${r.medio_pago||'—'}</td><td>${r.asignado_a}</td>
-      <td>${r.cuota_actual?r.cuota_actual+'/'+r.total_cuotas:'—'}</td>
-    </tr>`).join('')}</tbody>
-  </table>`;
-  impGoStep(3);
-}
-
-function impGetExportRows(){
-  const skip=document.getElementById('imp-skip-err').checked;
-  const dedup=document.getElementById('imp-dedup').checked;
-  let rows=impProcessed.filter(r=>!skip||!r._err);
-  if(dedup){const seen=new Set();rows=rows.filter(r=>{const k=`${r.fecha}|${r.monto}|${r.descripcion.toLowerCase()}`;if(seen.has(k))return false;seen.add(k);return true;});}
-  return rows;
-}
-
-function impExport(fmt){
-  const rows=impGetExportRows();
-  if(!rows.length){toast('Sin filas para exportar','warn');return;}
-  document.getElementById('imp-exp-stats').innerHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px">
-    <span style="background:var(--green-lt);color:var(--green);padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700">✓ ${rows.length} filas</span>
-    <span style="background:var(--bg4);color:var(--text2);padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700">Período: ${rows[rows.length-1]?.fecha} → ${rows[0]?.fecha}</span>
-  </div>`;
-  fmt==='csv'?impExportCSV(rows):impExportXLSX(rows);
-}
-
-function impExportCSV(rows){
-  const hdr=CHANCHITO_COLS_IMP;
-  const lines=[hdr.join(','),...rows.map(r=>hdr.map(h=>{const v=String(r[h]??'');return v.includes(',')||v.includes('"')?`"${v.replace(/"/g,'""')}"`:''+v;}).join(','))];
-  const blob=new Blob(['﻿'+lines.join('
-')],{type:'text/csv;charset=utf-8'});
-  impDownload(blob,`chanchito_historico_${impDateStr()}.csv`);
-  toast(`✓ CSV con ${rows.length} filas descargado`,'success');
-}
-
-function impExportXLSX(rows){
-  const wb=XLSX.utils.book_new();
-  const gastosData=[CHANCHITO_COLS_IMP,...rows.map(r=>CHANCHITO_COLS_IMP.map(h=>r[h]??''))];
-  const ws=XLSX.utils.aoa_to_sheet(gastosData);
-  ws['!cols']=[{wch:22},{wch:12},{wch:35},{wch:16},{wch:12},{wch:18},{wch:16},{wch:10},{wch:10},{wch:30},{wch:18},{wch:14}];
-  XLSX.utils.book_append_sheet(wb,ws,'gastos');
-  // Resumen histórico
-  const byM={};
-  rows.forEach(r=>{
-    const p=String(r.fecha).split('/');if(p.length<3)return;
-    const k=p[2]+'-'+p[1];const lbl=MESES_IMP[parseInt(p[1])-1]+' '+p[2];
-    if(!byM[k])byM[k]={mes:lbl,total:0,count:0,cats:{}};
-    byM[k].total+=parseFloat(r.monto)||0;byM[k].count++;
-    const cat=r.categoria||'Sin categoría';
-    byM[k].cats[cat]=(byM[k].cats[cat]||0)+(parseFloat(r.monto)||0);
-  });
-  const resumen=[['Mes','Total gastos','Movimientos','Categoría principal'],...Object.keys(byM).sort().map(k=>{const m=byM[k];const top=Object.entries(m.cats).sort((a,b)=>b[1]-a[1])[0];return[m.mes,m.total,m.count,top?top[0]:''];})];
-  const wsR=XLSX.utils.aoa_to_sheet(resumen);
-  wsR['!cols']=[{wch:18},{wch:16},{wch:16},{wch:22}];
-  XLSX.utils.book_append_sheet(wb,wsR,'resumen_historico');
-  XLSX.writeFile(wb,`chanchito_historico_${impDateStr()}.xlsx`);
-  toast(`✓ Excel con ${rows.length} filas + resumen histórico`,'success');
-}
-
-function impGoStep(n){
-  [1,2,3,4].forEach(i=>{
-    document.getElementById('ipanel-'+i).classList.toggle('iactive',i===n);
-    const dot=document.getElementById('idot-'+i);
-    const lbl=document.getElementById('ilbl-'+i);
-    if(i<n){dot.className='imp-step-dot idone';dot.textContent='✓';lbl.className='imp-step-lbl idone';}
-    else if(i===n){dot.className='imp-step-dot iactive';dot.textContent=i;lbl.className='imp-step-lbl iactive';}
-    else{dot.className='imp-step-dot';dot.textContent=i;lbl.className='imp-step-lbl';}
-  });
-}
-
-function impReset(){
-  impWorkbook=null;impActiveSheet=null;impRawData=[];impHeaders=[];impProcessed=[];
-  document.getElementById('imp-file-input').value='';
-  document.getElementById('imp-file-bar').innerHTML='';
-  ['imap-fecha','imap-monto','imap-desc','imap-cat','imap-medio','imap-asig','imap-cuotas','imap-notas']
-    .forEach(id=>{const s=document.getElementById(id);s.innerHTML='<option value="">— sin mapear —</option>';s.className='imp-map-sel';});
-  impGoStep(1);
-}
-
-function impPad(n){return String(n).padStart(2,'0');}
-function impNow(){const d=new Date();return impPad(d.getDate())+'/'+impPad(d.getMonth()+1)+'/'+d.getFullYear()+' '+impPad(d.getHours())+':'+impPad(d.getMinutes());}
-function impDateStr(){const d=new Date();return d.getFullYear()+impPad(d.getMonth()+1)+impPad(d.getDate());}
-function impDownload(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();URL.revokeObjectURL(a.href);}
-
-</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 :root{
@@ -1265,7 +965,7 @@ textarea{resize:vertical;min-height:68px}
     </div>
 
     <!-- PASO 2: MAPEAR -->
-    <div class="imp-panel" id="ipanel-2">
+    <div class="imp-panel" id="ipanel-2" style="display:none">
       <div id="imp-file-bar"></div>
       <div class="card" id="imp-sheet-card" style="display:none">
         <div class="card-hd"><div class="card-title">Seleccioná la hoja con los gastos</div></div>
@@ -1349,12 +1049,12 @@ textarea{resize:vertical;min-height:68px}
       </div>
       <div style="display:flex;gap:10px;margin-top:4px">
         <button class="btn btn-ghost" onclick="impGoStep(1)">← Volver</button>
-        <button class="btn btn-primary" id="imp-btn-validar" onclick="impValidar()" disabled>Validar datos →</button>
+        <button class="btn btn-primary" id="imp-btn-validar" onclick="impProcessar()">Validar y continuar →</button>
       </div>
     </div>
 
     <!-- PASO 3: VALIDAR -->
-    <div class="imp-panel" id="ipanel-3">
+    <div class="imp-panel" id="ipanel-3" style="display:none">
       <div class="val-grid" id="imp-val-grid"></div>
       <div class="issues-list" id="imp-issues"></div>
       <div class="card">
@@ -1371,14 +1071,14 @@ textarea{resize:vertical;min-height:68px}
           </label>
         </div>
       </div>
-      <div style="display:flex;gap:10px;margin-top:14px">
+      <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
         <button class="btn btn-ghost" onclick="impGoStep(2)">← Volver</button>
-        <button class="btn btn-primary" onclick="impGoStep(4)">Exportar →</button>
+        <button class="btn btn-primary" id="imp-btn-final" onclick="impImportar()">✓ Importar a Sheets</button>
       </div>
     </div>
 
     <!-- PASO 4: EXPORTAR -->
-    <div class="imp-panel" id="ipanel-4">
+    <div class="imp-panel" id="ipanel-4" style="display:none">
       <div id="imp-exp-stats" style="margin-bottom:14px"></div>
       <div class="exp-grid">
         <div class="exp-card" onclick="impExport('csv')">
@@ -1554,6 +1254,7 @@ function initAll(){
   fillRepCatSel();
   setTodayDate();
   initCharts();
+  impInitDragDrop(); // inicializar drag&drop del importador
 }
 
 // ══════ LOAD FROM SHEETS — carga TODO desde Sheets ══════
@@ -2833,6 +2534,245 @@ document.addEventListener('click', e=>{
 document.addEventListener('keydown', e=>{
   if(e.key==='Escape') closeModal();
 });
+
+// ══════════════════════════════════════════════════════════
+// IMPORTAR / EXPORTAR
+// ══════════════════════════════════════════════════════════
+let impWorkbook=null, impActiveSheet=null, impRawData=[], impHeaders=[], impProcessed=[];
+const IMP_REQ = ['imap-fecha','imap-monto','imap-desc'];
+const MESES_IMP = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+function impInitDragDrop(){
+  const dz = document.getElementById('imp-dropzone');
+  if(!dz) return;
+  dz.addEventListener('dragover', e=>{ e.preventDefault(); dz.classList.add('drag-over'); });
+  dz.addEventListener('dragleave', ()=>dz.classList.remove('drag-over'));
+  dz.addEventListener('drop', e=>{ e.preventDefault(); dz.classList.remove('drag-over'); impHandleFile(e.dataTransfer.files[0]); });
+}
+
+function impHandleFile(file){
+  if(!file) return;
+  const ext = file.name.split('.').pop().toLowerCase();
+  if(!['xlsx','xls','csv'].includes(ext)){ toast('❌ Formato no soportado. Usá .xlsx, .xls o .csv','error'); return; }
+  toast('📊 Leyendo archivo...','info');
+  const reader = new FileReader();
+  reader.onerror = ()=>toast('❌ Error leyendo el archivo','error');
+  reader.onload = e => {
+    try {
+      if(typeof XLSX === 'undefined'){ toast('❌ Librería XLSX no cargada, recargá la página','error'); return; }
+      impWorkbook = ext==='csv'
+        ? XLSX.read(e.target.result, {type:'string', raw:true})
+        : XLSX.read(e.target.result, {type:'array', cellDates:true});
+      impSetupSheets(file.name, file.size);
+      impGoStep(2);
+      toast('✓ Archivo leído correctamente','success');
+    } catch(err){ toast('❌ No se pudo leer el archivo: '+err.message,'error'); console.error(err); }
+  };
+  if(ext==='csv') reader.readAsText(file, 'UTF-8');
+  else reader.readAsArrayBuffer(file);
+}
+
+function impSetupSheets(name, size){
+  const sheets = impWorkbook.SheetNames;
+  document.getElementById('imp-file-bar').innerHTML = `
+    <div class="imp-file-info">
+      <span style="font-size:22px">📊</span>
+      <div><div style="font-size:13px;font-weight:600;color:var(--green)">${name}</div>
+      <div style="font-size:11px;color:var(--text3)">${sheets.length} hoja${sheets.length>1?'s':''} · ${(size/1024).toFixed(1)} KB</div></div>
+    </div>`;
+  const card = document.getElementById('imp-sheet-card');
+  if(sheets.length>1){
+    card.style.display='block';
+    document.getElementById('imp-sheet-sel').innerHTML=sheets.map(s=>`<option>${s}</option>`).join('');
+    document.getElementById('imp-sheet-sel').onchange=function(){ impLoadSheet(this.value); };
+  } else { card.style.display='none'; }
+  impLoadSheet(sheets[0]);
+}
+
+function impLoadSheet(sheetName){
+  impActiveSheet = sheetName;
+  const ws = impWorkbook.Sheets[sheetName];
+  const raw = XLSX.utils.sheet_to_json(ws, {header:1, defval:'', raw:false});
+  // Detectar fila de encabezados
+  const hrowSel = document.getElementById('imp-hrow');
+  const hrow = hrowSel ? parseInt(hrowSel.value)||0 : 0;
+  impHeaders = (raw[hrow]||[]).map(h=>String(h).trim());
+  impRawData = raw.slice(hrow+1).filter(r=>r.some(c=>String(c).trim()));
+  const cntEl = document.getElementById('imp-preview-count') || document.getElementById('imp-raw-count');
+  if(cntEl) cntEl.textContent = impRawData.length+' filas de datos';
+  // Llenar selects de mapeo
+  const opts = '<option value="">— sin mapear —</option>'+impHeaders.map((h,i)=>`<option value="${i}">${h}</option>`).join('');
+  ['imap-fecha','imap-monto','imap-desc','imap-cat','imap-medio','imap-asig','imap-cuotas','imap-notas'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el){ el.innerHTML=opts; }
+  });
+  // Autodetectar columnas por nombre
+  const autoMap = {
+    'imap-fecha':  ['fecha','date','dia','día'],
+    'imap-monto':  ['monto','importe','amount','total','valor'],
+    'imap-desc':   ['descripcion','descripción','concepto','detail','detalle','nombre'],
+    'imap-cat':    ['categoria','categoría','category','rubro','tipo'],
+    'imap-medio':  ['medio','medio_pago','tarjeta','payment','forma'],
+    'imap-notas':  ['notas','nota','note','notes','comentario'],
+  };
+  Object.entries(autoMap).forEach(([selId, keywords])=>{
+    const el=document.getElementById(selId);
+    if(!el) return;
+    const idx=impHeaders.findIndex(h=>keywords.includes(h.toLowerCase().replace(/\s+/g,'_')));
+    if(idx>=0){ el.value=String(idx); impCheckMap(el, selId); }
+  });
+  // Preview table
+  impRenderPreview();
+  // Enable button if required fields are auto-detected
+  const allReq = IMP_REQ.every(r=>{ const e=document.getElementById(r); return e&&e.value!==''; });
+  const btn = document.getElementById('imp-btn-validar');
+  if(btn) btn.disabled = !allReq;
+}
+
+function impReload(){
+  const hrow = parseInt(document.getElementById('imp-hrow').value)||0;
+  impLoadSheet(impActiveSheet);
+}
+
+function impRenderPreview(){
+  // Try both possible table IDs
+  const tbl = document.getElementById('imp-preview-tbl') || document.getElementById('imp-raw-prev');
+  if(!tbl) return;
+  const showRows = impRawData.slice(0,5);
+  tbl.innerHTML=`<div style="overflow-x:auto"><table class="tbl" style="font-size:11px"><thead><tr>${impHeaders.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${showRows.map(r=>`<tr>${impHeaders.map((_,i)=>`<td>${r[i]||''}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+}
+
+function impCheckMap(el, id){
+  el.style.borderColor = el.value ? 'var(--green)' : 'var(--border)';
+  // Enable proceed button when all required fields are mapped
+  const allReq = IMP_REQ.every(r=>{ const e=document.getElementById(r); return e&&e.value!==''; });
+  const btn = document.getElementById('imp-btn-validar');
+  if(btn) btn.disabled = !allReq;
+}
+
+function impGoStep(n){
+  // Show/hide panels (ipanel-1 .. ipanel-4)
+  [1,2,3,4].forEach(i=>{
+    const p=document.getElementById('ipanel-'+i);
+    if(p) p.style.display=(i===n)?'block':'none';
+  });
+  // Update step indicators
+  [1,2,3,4].forEach(i=>{
+    const dot=document.getElementById('idot-'+i);
+    const lbl=document.getElementById('ilbl-'+i);
+    if(dot){
+      dot.classList.toggle('iactive', i===n);
+      dot.classList.toggle('idone',   i<n);
+      dot.classList.remove(...(i===n?['idone']:[]));
+      if(i<n){ dot.classList.add('idone'); dot.classList.remove('iactive'); }
+      if(i===n){ dot.classList.add('iactive'); dot.classList.remove('idone'); }
+      if(i>n){ dot.classList.remove('iactive','idone'); }
+    }
+    if(lbl){
+      lbl.classList.toggle('iactive', i===n);
+      lbl.classList.toggle('idone',   i<n);
+    }
+  });
+}
+
+function impGetColIdx(selId){
+  const el=document.getElementById(selId);
+  return el&&el.value!=='' ? parseInt(el.value) : -1;
+}
+
+function impParseDate(raw){
+  if(!raw) return '';
+  const s=String(raw).trim();
+  // DD/MM/YYYY
+  if(s.match(/^\d{1,2}\/\d{1,2}\/\d{4}$/)){
+    const [d,m,y]=s.split('/');
+    return d.padStart(2,'0')+'/'+m.padStart(2,'0')+'/'+y;
+  }
+  // YYYY-MM-DD
+  if(s.match(/^\d{4}-\d{2}-\d{2}/)){
+    const [y,m,d]=s.split('T')[0].split('-');
+    return d+'/'+m+'/'+y;
+  }
+  // Try JS date
+  const d=new Date(s);
+  if(!isNaN(d.getTime())){
+    return impPad(d.getDate())+'/'+impPad(d.getMonth()+1)+'/'+d.getFullYear();
+  }
+  return s;
+}
+
+async function impProcessar(){
+  const fIdx=impGetColIdx('imap-fecha'), mIdx=impGetColIdx('imap-monto'), dIdx=impGetColIdx('imap-desc');
+  if(fIdx<0||mIdx<0||dIdx<0){ toast('⚠️ Mapeá al menos Fecha, Monto y Descripción','warn'); return; }
+  const cIdx=impGetColIdx('imap-cat'), medIdx=impGetColIdx('imap-medio'),
+        aIdx=impGetColIdx('imap-asig'), cuIdx=impGetColIdx('imap-cuotas'), nIdx=impGetColIdx('imap-notas');
+
+  impProcessed = impRawData
+    .map(r=>({
+      fecha:       impParseDate(r[fIdx]),
+      monto:       Math.abs(parseFloat(String(r[mIdx]).replace(/[$,.]/g,'').replace(',','.')) || 0),
+      descripcion: String(r[dIdx]||'').trim(),
+      categoria:   cIdx>=0 ? String(r[cIdx]||'').trim() : '',
+      medio_pago:  medIdx>=0 ? String(r[medIdx]||'').trim() : '',
+      asignado_a:  aIdx>=0 ? String(r[aIdx]||'').trim() : '',
+      cuotas:      cuIdx>=0 ? String(r[cuIdx]||'').trim() : '',
+      notas:       nIdx>=0 ? String(r[nIdx]||'').trim() : '',
+    }))
+    .filter(r=>r.monto>0 && r.descripcion && r.fecha);
+
+  document.getElementById('imp-proc-count').textContent=impProcessed.length+' gastos listos para importar';
+  const tbody=document.getElementById('imp-proc-tbl');
+  tbody.innerHTML=impProcessed.slice(0,10).map(r=>`<tr>
+    <td>${r.fecha}</td><td>${r.descripcion}</td>
+    <td>${r.categoria||'—'}</td>
+    <td class="mono">$${r.monto.toLocaleString('es-AR')}</td>
+    <td>${r.medio_pago||'—'}</td>
+  </tr>`).join('');
+  if(impProcessed.length>10){
+    tbody.innerHTML+=`<tr><td colspan="5" style="text-align:center;color:var(--text3);font-size:11px">... y ${impProcessed.length-10} más</td></tr>`;
+  }
+  impGoStep(3);
+}
+
+async function impImportar(){
+  if(!impProcessed.length){ toast('Sin datos para importar','warn'); return; }
+  const btn=document.getElementById('imp-btn-final');
+  if(btn){ btn.disabled=true; btn.textContent='Importando...'; }
+  let ok=0, err=0;
+  // Enviar en lotes de 50
+  const lotes=[];
+  for(let i=0;i<impProcessed.length;i+=50) lotes.push(impProcessed.slice(i,i+50));
+  for(const lote of lotes){
+    try{
+      const res=await sheetsWrite('addGastos',{filas:lote.map(r=>({
+        fecha:       r.fecha,
+        descripcion: r.descripcion,
+        categoria:   r.categoria,
+        monto:       r.monto,
+        medio_pago:  r.medio_pago||'Crédito Patagonia MC',
+        asignado_a:  r.asignado_a||'rocio',
+        notas:       r.notas,
+      })), user:'rocio'});
+      if(res.ok) ok+=lote.length;
+      else { err+=lote.length; console.error(res.error); }
+    } catch(e){ err+=lote.length; }
+  }
+  if(btn){ btn.disabled=false; btn.textContent='✓ Importar a Sheets'; }
+  toast(`✓ ${ok} gastos importados a Sheets${err?` · ${err} errores`:''}`, ok?'success':'error');
+  if(ok>0){ await loadFromSheets(true); impGoStep(1); impProcessed=[]; }
+}
+
+function impReset(){
+  impWorkbook=null; impActiveSheet=null; impRawData=[]; impHeaders=[]; impProcessed=[];
+  const fi=document.getElementById('imp-file-input'); if(fi) fi.value='';
+  impGoStep(1);
+}
+
+function impPad(n){return String(n).padStart(2,'0');}
+function impNow(){const d=new Date();return impPad(d.getDate())+'/'+impPad(d.getMonth()+1)+'/'+d.getFullYear()+' '+impPad(d.getHours())+':'+impPad(d.getMinutes());}
+function impDateStr(){const d=new Date();return d.getFullYear()+impPad(d.getMonth()+1)+impPad(d.getDate());}
+function impDownload(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();URL.revokeObjectURL(a.href);}
+
 </script>
 </body>
 </html>
