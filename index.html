@@ -493,11 +493,8 @@ textarea{resize:vertical;min-height:68px}
       <span class="topbar-sub" id="tsub">Abril 2026 · Rocío</span>
     </div>
     <div class="topbar-actions">
-      <select class="form-sel" id="mes-sel">
-        <option value="4">Abril 2026</option>
-        <option value="3">Marzo 2026</option>
-        <option value="2">Febrero 2026</option>
-        <option value="1">Enero 2026</option>
+      <select class="form-sel" id="mes-sel" onchange="onMesSelChange()">
+        <option value="">Cargando...</option>
       </select>
       <button class="btn btn-primary btn-sm" onclick="nav('nuevo',document.querySelectorAll('.nav-item')[6])">＋ Gasto</button>
     </div>
@@ -555,7 +552,7 @@ textarea{resize:vertical;min-height:68px}
     </div>
     <div class="card">
       <div class="card-hd">
-        <div><div class="card-title">Gastos — Abril 2026</div><div class="card-sub" id="gastos-sub">Cargando...</div></div>
+        <div><div class="card-title" id="gastos-title">Gastos — Abril 2026</div><div class="card-sub" id="gastos-sub">Cargando...</div></div>
       </div>
       <div class="tbl-wrap"><table>
         <thead><tr><th>Fecha</th><th>Descripción</th><th>Categoría</th><th>Medio pago</th><th>Asignado</th><th>Cuotas</th><th style="text-align:right">Monto</th><th></th></tr></thead>
@@ -1378,9 +1375,58 @@ async function loadFromSheets(silent=false){
   }
 }
 
+function getMesAnioSel(){
+  const sel = document.getElementById('mes-sel');
+  if(sel && sel.value && sel.value.includes('-')){
+    const [anio, mes] = sel.value.split('-').map(Number);
+    return {mes, anio};
+  }
+  const now = new Date();
+  return {mes: now.getMonth()+1, anio: now.getFullYear()};
+}
+
+function onMesSelChange(){
+  updateDashboardMetrics();
+  renderGastos();
+  const sel = document.getElementById('mes-sel');
+  const txt = sel.options[sel.selectedIndex]?.text || '';
+  document.getElementById('tsub').textContent = txt + ' · Rocío';
+}
+
+function fillMesSel(){
+  // Construir lista de meses únicos desde GASTOS_CACHE e INGRESOS_CACHE
+  const mesesSet = new Set();
+  GASTOS_CACHE.forEach(g=>{
+    const p = String(g.fecha||'').split('/');
+    if(p.length===3) mesesSet.add(p[2]+'-'+p[1].padStart(2,'0'));
+  });
+  INGRESOS_CACHE.forEach(i=>{
+    const p = String(i.fecha||'').split('/');
+    if(p.length===3) mesesSet.add(p[2]+'-'+p[1].padStart(2,'0'));
+  });
+  // Ordenar descendente
+  const meses = [...mesesSet].sort((a,b)=>b.localeCompare(a));
+  const MESES_NOM = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const sel = document.getElementById('mes-sel');
+  if(!sel) return;
+  // Mes actual por defecto
+  const now = new Date();
+  const curKey = now.getFullYear()+'-'+(now.getMonth()+1+'').padStart(2,'0');
+  // Asegurar que el mes actual esté en la lista
+  if(!mesesSet.has(curKey)) meses.unshift(curKey);
+  sel.innerHTML = meses.map(k=>{
+    const [anio, mes] = k.split('-');
+    const label = MESES_NOM[parseInt(mes)-1]+' '+anio;
+    const sel2 = k===curKey ? ' selected' : '';
+    return `<option value="${k}"${sel2}>${label}</option>`;
+  }).join('');
+  // Actualizar subtítulo
+  const txt = sel.options[sel.selectedIndex]?.text || '';
+  document.getElementById('tsub').textContent = txt + ' · Rocío';
+}
+
 function updateDashboardMetrics(){
-  const mesActual  = new Date().getMonth()+1;
-  const anioActual = new Date().getFullYear();
+  const {mes: mesActual, anio: anioActual} = getMesAnioSel();
 
   // ── Gastos del mes
   const gastosDelMes = GASTOS_CACHE.filter(g=>{
@@ -1578,10 +1624,18 @@ function badgeFor(asig){
 function renderGastos(filter='todos', catFilter=''){
   const tbody=document.getElementById('tbody-gastos');
   const tbodyR=document.getElementById('tbody-recientes');
+  const {mes: _rMes, anio: _rAnio} = getMesAnioSel();
+  // Actualizar título de la sección
+  const _rSel = document.getElementById('mes-sel');
+  const _rLabel = _rSel?.options[_rSel.selectedIndex]?.text || 'Mes actual';
+  const _rTitleEl = document.getElementById('gastos-title');
+  if(_rTitleEl) _rTitleEl.textContent = 'Gastos — ' + _rLabel;
   const filtered=GASTOS_CACHE.filter(g=>{
     const pOk=filter==='todos'||g.asig.toLowerCase().includes(filter)||g.asig==='Compartido'&&filter==='compartido';
     const cOk=!catFilter||g.cat===catFilter;
-    return pOk&&cOk;
+    const p=String(g.fecha||'').split('/');
+    const mOk=parseInt(p[1])===_rMes && parseInt(p[2])===_rAnio;
+    return pOk&&cOk&&mOk;
   });
   tbody.innerHTML=filtered.map((g,i)=>`
     <tr data-i="${i}">
