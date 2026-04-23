@@ -1336,7 +1336,7 @@ async function loadFromSheets(silent=false){
 
   try {
     // Cargar todo en paralelo
-    const [respG, respI, respCat, respMed, respPresup, respPF, respCal] = await Promise.all([
+    const [respG, respI, respCat, respMed, respPresup, respPF, respCal, respU, respDeu] = await Promise.all([
       sheetsAPI('getGastos'),
       sheetsAPI('getIngresos'),
       sheetsAPI('getCategorias'),
@@ -1344,22 +1344,47 @@ async function loadFromSheets(silent=false){
       sheetsAPI('getPresupuesto'),
       sheetsAPI('getPagosFijos'),
       sheetsAPI('getCalendario'),
+      sheetsAPI('getUsuarios'),
+      sheetsAPI('getDeudas'),
     ]);
 
     // Gastos
     if(respG.ok){
-      GASTOS_CACHE = respG.data.map(r=>({
-        id:     r.id||'',
-        fecha:  r.fecha,
-        desc:   r.descripcion,
-        cat:    r.categoria,
-        medio:  r.medio_pago,
-        asig:   r.asignado_a,
-        cuotas: r.cuota_actual&&r.total_cuotas?`${r.cuota_actual}/${r.total_cuotas}`:'—',
-        monto:  Math.abs(parseFloat(r.monto||0)),
-        notas:  r.notas||'',
-        raw:    r
-      }));
+      GASTOS_CACHE = respG.data.map(r=>{
+        // cuota_actual puede venir como número, como fecha "2026-06-03" o como string "3"
+        // Extraer el número real de cuota
+        let ca = r.cuota_actual||r['cuota_actual']||'';
+        let ct = r.total_cuotas||r['total_cuotas']||'';
+        if(ca && String(ca).match(/\d{4}-\d{2}-\d{2}/)){
+          // Es una fecha — extraer el día como número de cuota
+          ca = parseInt(String(ca).split('-')[2]) || '';
+        }
+        ca = ca ? parseInt(ca) : '';
+        ct = ct ? parseInt(ct) : '';
+        // monto: si monto es 0 pero cuota_actual tiene valor numérico grande, 
+        // es un bug de importación donde monto y cuota_actual se intercambiaron
+        let monto = parseFloat(r.monto||0);
+        if(monto === 0 && ca > 1000){
+          // cuota_actual contiene el monto real, monto está en 0
+          monto = ca;
+          ca = '';
+          ct = '';
+        }
+        return {
+          id:     r.id||'',
+          fecha:  r.fecha,
+          desc:   r.descripcion,
+          cat:    r.categoria,
+          medio:  r.medio_pago,
+          asig:   r.asignado_a,
+          cuotas: ca&&ct?`${ca}/${ct}`:'—',
+          cuota_actual: ca,
+          total_cuotas: ct,
+          monto:  Math.abs(monto),
+          notas:  r.notas||'',
+          raw:    r
+        };
+      });
     }
 
     // Ingresos
@@ -1417,6 +1442,32 @@ async function loadFromSheets(silent=false){
         const key = `${pid}_${anio}_${mes}`;
         ESTADO_PAGOS[key] = String(r.pagado||'').toUpperCase()==='SI';
       });
+    }
+
+    // Usuarios desde Sheets
+    if(respU&&respU.ok&&respU.data&&respU.data.length){
+      const nombresSheets = respU.data.map(u=>u.nombre||u.name||'').filter(n=>n&&n.toLowerCase()!=='rocío'&&n.toLowerCase()!=='rocio');
+      // Mergear con CFG.users sin duplicar
+      nombresSheets.forEach(n=>{ if(!CFG.users.includes(n)) CFG.users.push(n); });
+    }
+
+    // Deudas desde Sheets
+    if(respDeu&&respDeu.ok&&respDeu.data&&respDeu.data.length){
+      const deudasSheets = respDeu.data.map(r=>({
+        id:       r.id||'d'+Math.random(),
+        tipo:     r.tipo||'me_deben',
+        persona:  r.persona||'',
+        monto:    parseFloat(r.monto||0),
+        fecha:    r.fecha||'',
+        desc:     r.descripcion||r.desc||'',
+        notas:    r.notas||'',
+        saldada:  String(r.saldada||'').toUpperCase()==='SI'||r.saldada===true,
+      }));
+      // Mergear: IDs de Sheets tienen prioridad sobre localStorage
+      const idsSheets = new Set(deudasSheets.map(d=>d.id));
+      const soloLocal = DEUDAS.filter(d=>!idsSheets.has(d.id));
+      DEUDAS = [...deudasSheets, ...soloLocal];
+      try{ localStorage.setItem('chanchito_deudas', JSON.stringify(DEUDAS)); }catch(e){}
     }
 
     // Actualizar toda la UI
@@ -2208,7 +2259,16 @@ async function guardar(){
             saldada: false
           });
           try{ localStorage.setItem('chanchito_deudas', JSON.stringify(DEUDAS)); }catch(e){}
-          toast(`💰 ${persona} te debe $${montoDeuda.toLocaleString('es-AR')} — aparece en Deudas`, 'info');
+          // Guardar en Sheets
+          const lastDeuda = DEUDAS[DEUDAS.length-1];
+          sheetsWrite('saveDeuda',{
+            id:lastDeuda.id, tipo:'me_deben', persona:lastDeuda.persona,
+            monto:lastDeuda.monto, fecha:lastDeuda.fecha,
+            descripcion:lastDeuda.desc, notas:lastDeuda.notas,
+            saldada:'NO', cargado_por:currentUser,
+            fecha_carga:new Date().toLocaleDateString('es-AR')
+          }).catch(e=>console.warn('Deuda auto no guardada en Sheets:',e.message));
+          toast(`💰 ${persona} te debe $${montoDeuda.toLocaleString('es-AR')} — guardado en Deudas`, 'info');
           renderDeudas();
         }
       }
@@ -2275,8 +2335,15 @@ async function addTag(type){
   } else {
     const n=document.getElementById('new-user-name').value.trim();
     if(!n)return;
-    CFG.users.push(n);
+    if(!CFG.users.includes(n)) CFG.users.push(n);
     document.getElementById('new-user-name').value='';
+    // Guardar usuario también en hoja usuarios de Sheets
+    try{
+      await sheetsWrite('saveUsuario',{
+        id:'u_'+n.toLowerCase().replace(/\s+/g,'_')+'_'+Date.now(),
+        nombre:n, fecha_carga:new Date().toLocaleDateString('es-AR')
+      });
+    }catch(e){ console.warn('Usuario local, no en Sheets:', e.message); }
   }
   saveCfg();
   renderConfig();
@@ -3104,7 +3171,7 @@ function closeDeudaModal(){
   document.getElementById('modal-deuda').style.display='none';
 }
 
-function saveDeuda(){
+async function saveDeuda(){
   const tipo=document.getElementById('deuda-tipo').value;
   const persona=document.getElementById('deuda-persona').value.trim();
   const monto=parseFloat(document.getElementById('deuda-monto').value);
@@ -3117,19 +3184,32 @@ function saveDeuda(){
   if(!desc){toast('⚠️ Describí la deuda','warn');return;}
   const [y,m,d]=fechaRaw.split('-');
   const fecha=d+'/'+m+'/'+y;
+  let deudaObj;
   if(editId){
     const idx=DEUDAS.findIndex(x=>x.id===editId);
-    if(idx>=0) DEUDAS[idx]={...DEUDAS[idx],tipo,persona,monto,fecha,desc,notas};
+    if(idx>=0){ DEUDAS[idx]={...DEUDAS[idx],tipo,persona,monto,fecha,desc,notas}; deudaObj=DEUDAS[idx]; }
     toast('✓ Deuda actualizada','success');
   } else {
-    DEUDAS.push({id:'d'+Date.now(),tipo,persona,monto,fecha,desc,notas,saldada:false});
+    deudaObj={id:'d'+Date.now(),tipo,persona,monto,fecha,desc,notas,saldada:false};
+    DEUDAS.push(deudaObj);
     toast('✓ Deuda registrada','success');
   }
+  try{ localStorage.setItem('chanchito_deudas', JSON.stringify(DEUDAS)); }catch(e){}
+  // Guardar en Sheets
+  try{
+    await sheetsWrite('saveDeuda',{
+      id:deudaObj.id, tipo:deudaObj.tipo, persona:deudaObj.persona,
+      monto:deudaObj.monto, fecha:deudaObj.fecha,
+      descripcion:deudaObj.desc, notas:deudaObj.notas,
+      saldada:deudaObj.saldada?'SI':'NO',
+      cargado_por:currentUser, fecha_carga:new Date().toLocaleDateString('es-AR')
+    });
+  }catch(e){ console.warn('Deuda guardada local pero no en Sheets:', e.message); }
   closeDeudaModal();
   renderDeudas();
 }
 
-function saldarDeuda(id){
+async function saldarDeuda(id){
   const d=DEUDAS.find(x=>x.id===id);
   if(!d)return;
   const msg=d.tipo==='me_deben'
@@ -3137,6 +3217,10 @@ function saldarDeuda(id){
     :`¿Le pagaste $${d.monto.toLocaleString('es-AR')} a ${d.persona}?`;
   if(!confirm(msg+' Esto la marcará como saldada.'))return;
   d.saldada=true;
+  try{ localStorage.setItem('chanchito_deudas', JSON.stringify(DEUDAS)); }catch(e){}
+  try{
+    await sheetsWrite('saldarDeuda',{id, fecha_saldo:new Date().toLocaleDateString('es-AR')});
+  }catch(e){ console.warn('Saldada local pero no en Sheets:', e.message); }
   toast('✅ Deuda saldada y movida al historial','success');
   renderDeudas();
 }
