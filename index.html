@@ -465,6 +465,7 @@ textarea{resize:vertical;min-height:68px}
     <div class="nav-section">Análisis</div>
     <div class="nav-item" onclick="nav('presupuesto',this)"><span class="nav-icon">🎯</span>Presupuesto</div>
     <div class="nav-item" onclick="nav('proyeccion',this)"><span class="nav-icon">📈</span>Proyección</div>
+    <div class="nav-item" onclick="nav('deudas',this)"><span class="nav-icon">🤝</span>Deudas</div>
     <div class="nav-section">Acción</div>
     <div class="nav-item" onclick="nav('nuevo',this)"><span class="nav-icon">➕</span>Nuevo gasto</div>
     <div class="nav-item" onclick="nav('reportes',this)"><span class="nav-icon">📊</span>Reportes</div>
@@ -632,7 +633,7 @@ textarea{resize:vertical;min-height:68px}
       </div>
       <div class="card">
         <div class="card-hd"><div class="card-title">Cuotas comprometidas</div></div>
-        <div id="cuotas-comp"></div>
+        <div id="cuotas-comp" style="max-height:200px;overflow-y:auto"></div>
       </div>
     </div>
     <div class="row2">
@@ -668,6 +669,67 @@ textarea{resize:vertical;min-height:68px}
             <button class="btn btn-primary btn-sm" onclick="addEvento('gasto')">Guardar</button>
             <button class="btn btn-ghost btn-sm" onclick="hideEvento('gasto')">Cancelar</button>
           </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ════ DEUDAS ════ -->
+  <div class="page" id="pg-deudas">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;flex-wrap:wrap;gap:8px">
+      <div>
+        <div style="font-size:15px;font-weight:700;letter-spacing:-.3px">🤝 Deudas</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px">Lo que me deben y lo que debo</div>
+      </div>
+      <div style="display:flex;gap:7px">
+        <button class="btn btn-primary btn-sm" onclick="openAddDeuda('me_deben')">＋ Me deben</button>
+        <button class="btn btn-ghost btn-sm" onclick="openAddDeuda('debo')">＋ Debo</button>
+      </div>
+    </div>
+    <div class="metrics-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:18px">
+      <div class="metric-card"><div class="metric-label">Me deben (pendiente)</div><div class="metric-value green" id="d-me-deben">$0</div><div class="metric-delta delta-neutral" id="d-me-deben-count">0 deudas</div></div>
+      <div class="metric-card"><div class="metric-label">Debo (pendiente)</div><div class="metric-value red" id="d-debo">$0</div><div class="metric-delta delta-neutral" id="d-debo-count">0 deudas</div></div>
+      <div class="metric-card"><div class="metric-label">Balance neto</div><div class="metric-value blue" id="d-balance">$0</div><div class="metric-delta delta-neutral">Me deben − debo</div></div>
+    </div>
+    <div class="row2">
+      <div class="card">
+        <div class="card-hd"><div><div class="card-title">💰 Me deben</div><div class="card-sub">Plata que otros te deben a vos</div></div></div>
+        <div id="deudas-me-deben-list"></div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><div><div class="card-title">📤 Lo que debo</div><div class="card-sub">Plata que vos le debés a otros</div></div></div>
+        <div id="deudas-debo-list"></div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <div class="card-hd">
+        <div><div class="card-title">✅ Historial — Saldadas</div><div class="card-sub">Deudas ya cobradas o pagadas</div></div>
+        <button class="btn btn-ghost btn-sm" onclick="toggleHistorialDeudas(this)">Ver historial ▾</button>
+      </div>
+      <div id="deudas-historial" style="display:none">
+        <div id="deudas-historial-list" style="margin-top:8px"></div>
+      </div>
+    </div>
+    <!-- MODAL DEUDA -->
+    <div id="modal-deuda" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:600;align-items:center;justify-content:center">
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:28px;width:420px;box-shadow:0 20px 60px rgba(0,0,0,.15)">
+        <div style="font-size:15px;font-weight:700;margin-bottom:4px;letter-spacing:-.3px" id="deuda-modal-title">Nueva deuda</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:18px" id="deuda-modal-sub"></div>
+        <input type="hidden" id="deuda-tipo" value="me_deben">
+        <input type="hidden" id="deuda-edit-id" value="">
+        <div class="form-grid" style="gap:12px">
+          <div class="fg full"><label class="fl">Persona</label>
+            <select class="fs" id="deuda-persona"><option value="">Seleccionar...</option></select>
+          </div>
+          <div class="fg"><label class="fl">Monto</label><input class="fi" id="deuda-monto" type="number" placeholder="0" min="0"></div>
+          <div class="fg"><label class="fl">Fecha</label><input class="fi" id="deuda-fecha" type="date"></div>
+          <div class="fg full"><label class="fl">Descripción / motivo</label><input class="fi" id="deuda-desc" placeholder="Ej: cena del viernes, viaje, cuota..."></div>
+          <div class="fg full"><label class="fl">Notas</label><textarea class="fi" id="deuda-notas" placeholder="Notas adicionales..." style="min-height:50px"></textarea></div>
+        </div>
+        <div style="display:flex;gap:9px;margin-top:18px">
+          <button class="btn btn-primary" onclick="saveDeuda()">Guardar</button>
+          <button class="btn btn-ghost" onclick="closeDeudaModal()">Cancelar</button>
         </div>
       </div>
     </div>
@@ -732,9 +794,9 @@ textarea{resize:vertical;min-height:68px}
         <div class="rep-nm">Reporte mensual</div>
         <div class="rep-desc">Ingresos, gastos y balance del mes con desglose por categoría.</div>
         <div class="rep-actions">
-          <select class="form-sel" id="rep-mes-sel"></select>
+          <select class="form-sel"><option>Abril 2026</option><option>Marzo 2026</option><option>Febrero 2026</option></select>
           <button class="btn btn-primary btn-sm" onclick="dl('mensual')">↓ PDF</button>
-          <button class="btn btn-ghost btn-sm" onclick="dl('mensualExcel')">↓ Excel</button>
+          <button class="btn btn-ghost btn-sm" onclick="dl('Reporte mensual Excel')">↓ Excel</button>
         </div>
       </div>
       <div class="rep-card">
@@ -742,9 +804,9 @@ textarea{resize:vertical;min-height:68px}
         <div class="rep-nm">Reporte anual</div>
         <div class="rep-desc">Evolución mensual, ahorro acumulado y proyección de cierre de año.</div>
         <div class="rep-actions">
-          <select class="form-sel" id="rep-anio-sel"><option value="2026">2026</option><option value="2025">2025</option><option value="2024">2024</option></select>
+          <select class="form-sel"><option>2026</option><option>2025</option></select>
           <button class="btn btn-primary btn-sm" onclick="dl('anual')">↓ PDF</button>
-          <button class="btn btn-ghost btn-sm" onclick="dl('anualExcel')">↓ Excel</button>
+          <button class="btn btn-ghost btn-sm" onclick="dl('Reporte anual Excel')">↓ Excel</button>
         </div>
       </div>
       <div class="rep-card">
@@ -753,7 +815,7 @@ textarea{resize:vertical;min-height:68px}
         <div class="rep-desc">Estado de todos los pagos en cuotas activos y cronograma de vencimientos.</div>
         <div class="rep-actions">
           <button class="btn btn-primary btn-sm" onclick="dl('cuotas')">↓ PDF</button>
-          <button class="btn btn-ghost btn-sm" onclick="dl('cuotasExcel')">↓ Excel</button>
+          <button class="btn btn-ghost btn-sm" onclick="dl('Cuotas Excel')">↓ Excel</button>
         </div>
       </div>
       <div class="rep-card">
@@ -761,9 +823,8 @@ textarea{resize:vertical;min-height:68px}
         <div class="rep-nm">Por categoría</div>
         <div class="rep-desc">Análisis de gastos agrupados con tendencias históricas por categoría.</div>
         <div class="rep-actions">
-          <select class="form-sel" id="rep-cat-sel"><option value="">Todas</option></select>
+          <select class="form-sel" id="rep-cat-sel"><option>Todas</option></select>
           <button class="btn btn-primary btn-sm" onclick="dl('categorias')">↓ PDF</button>
-          <button class="btn btn-ghost btn-sm" onclick="dl('categoriasExcel')">↓ Excel</button>
         </div>
       </div>
       <div class="rep-card" style="grid-column:1/-1">
@@ -1236,50 +1297,25 @@ function nav(id,el){
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   document.getElementById('pg-'+id).classList.add('active');
   if(el)el.classList.add('active');
-  const titles={dashboard:'Dashboard',gastos:'Gastos',ingresos:'Ingresos',presupuesto:'Presupuesto',proyeccion:'Proyección',nuevo:'Nuevo gasto',reportes:'Reportes',calendario:'Calendario de pagos',importar:'Importar / Exportar',config:'Configuración'};
+  const titles={dashboard:'Dashboard',gastos:'Gastos',ingresos:'Ingresos',presupuesto:'Presupuesto',proyeccion:'Proyección',deudas:'Deudas',nuevo:'Nuevo gasto',reportes:'Reportes',calendario:'Calendario de pagos',importar:'Importar / Exportar',config:'Configuración'};
   document.getElementById('ttitle').textContent=titles[id]||id;
-}
-
-// ══════ HELPER CUOTAS ══════
-// Parsea cuota_actual y total_cuotas desde cualquier formato posible:
-// - Campos separados en raw (cuota_actual / total_cuotas)
-// - String "N/M" en g.cuotas
-// - Texto en la descripción: "(cuota 1/3)", "(cuota 2/6)", etc.
-function getCuotaNums(g){
-  // 1) Propiedades directas del cache (ya parseadas al cargar desde Sheets)
-  let ca = g.cuota_actual||0;
-  let ct = g.total_cuotas||0;
-  // 2) Desde raw por si acaso
-  if(!ca) ca = parseInt(g.raw?.cuota_actual||0);
-  if(!ct) ct = parseInt(g.raw?.total_cuotas||0);
-  // 3) Desde el string "N/M" en g.cuotas (ej: "1/3")
-  if((!ca||!ct) && g.cuotas && g.cuotas !== '—'){
-    const parts = String(g.cuotas).split('/');
-    if(parts.length===2){ ca=ca||parseInt(parts[0])||0; ct=ct||parseInt(parts[1])||0; }
-  }
-  // 4) Desde la descripción: "(cuota 1/3)", "(cuota 2/6)", etc.
-  if(!ca||!ct){
-    const desc = String(g.desc||g.descripcion||'');
-    const m1 = desc.match(/cuota\s+(\d+)\s*[\/\-de]+\s*(\d+)/i);
-    if(m1){ ca=ca||parseInt(m1[1])||0; ct=ct||parseInt(m1[2])||0; }
-  }
-  return {ca: ca||0, ct: ct||0};
+  if(id==='deudas') renderDeudas();
 }
 
 // ══════ INIT ══════
 function initAll(){
-  fillMesSel();      // FIX: poblar selector SIEMPRE con mes actual antes de Sheets
   renderCatList();
   renderGastos();
   renderPresupuesto();
   renderProj();
   renderConfig();
+  renderDeudas();
   renderCalendario();
   fillSelects();
   fillRepCatSel();
   setTodayDate();
   initCharts();
-  impInitDragDrop();
+  impInitDragDrop(); // inicializar drag&drop del importador
 }
 
 // ══════ LOAD FROM SHEETS — carga TODO desde Sheets ══════
@@ -1313,18 +1349,16 @@ async function loadFromSheets(silent=false){
     // Gastos
     if(respG.ok){
       GASTOS_CACHE = respG.data.map(r=>({
-        id:           r.id||'',
-        fecha:        r.fecha,
-        desc:         r.descripcion,
-        cat:          r.categoria,
-        medio:        r.medio_pago,
-        asig:         r.asignado_a,
-        cuota_actual: parseInt(r.cuota_actual)||0,
-        total_cuotas: parseInt(r.total_cuotas)||0,
-        cuotas:       r.cuota_actual&&r.total_cuotas?`${r.cuota_actual}/${r.total_cuotas}`:'—',
-        monto:        Math.abs(parseFloat(r.monto||0)),
-        notas:        r.notas||'',
-        raw:          r
+        id:     r.id||'',
+        fecha:  r.fecha,
+        desc:   r.descripcion,
+        cat:    r.categoria,
+        medio:  r.medio_pago,
+        asig:   r.asignado_a,
+        cuotas: r.cuota_actual&&r.total_cuotas?`${r.cuota_actual}/${r.total_cuotas}`:'—',
+        monto:  Math.abs(parseFloat(r.monto||0)),
+        notas:  r.notas||'',
+        raw:    r
       }));
     }
 
@@ -1386,8 +1420,6 @@ async function loadFromSheets(silent=false){
     }
 
     // Actualizar toda la UI
-    fillMesSel(); // FIX: poblar selector de meses con datos reales
-    fillRepMesSel(); // poblar selector de meses en card de reportes
     renderGastos();
     renderConfig();
     renderPresupuesto();
@@ -1420,6 +1452,7 @@ function getMesAnioSel(){
 function onMesSelChange(){
   updateDashboardMetrics();
   renderGastos();
+  renderProj();
   const sel = document.getElementById('mes-sel');
   const txt = sel.options[sel.selectedIndex]?.text || '';
   document.getElementById('tsub').textContent = txt + ' · Rocío';
@@ -1478,22 +1511,31 @@ function updateDashboardMetrics(){
   const balance = totalIngresos - totalGastos;
 
   // ── Cuotas activas: gastos con cuota_actual que no son la última
-  const cuotasActivas = GASTOS_CACHE.filter(g=>{ const {ca,ct}=getCuotaNums(g); return ca>0&&ct>0&&ca<ct; });
+  const cuotasActivas = GASTOS_CACHE.filter(g=>{
+    const ca=parseInt(g.cuota_actual||g.cuotaActual||0);
+    const ct=parseInt(g.total_cuotas||g.totalCuotas||0);
+    return ca>0 && ct>0 && ca<ct;
+  });
   const totalCuotas = cuotasActivas.reduce((s,g)=>s+(g.monto||0),0);
 
   // ── Pct gastos/ingresos
   const pctGastos = totalIngresos>0 ? Math.round(totalGastos/totalIngresos*100) : (totalGastos>0?100:0);
 
-  // Cuotas: monto mensual comprometido — una por grupo de cuotas pendientes
+  // Cuotas: monto mensual comprometido (cuota del mes siguiente, una por grupo)
+  // Buscar cuotas distintas — una línea por grupo de cuotas pendientes
   const cuotasGrupos = {};
   GASTOS_CACHE.forEach(g=>{
-    const {ca,ct}=getCuotaNums(g);
+    const ca=parseInt(g.raw?.cuota_actual||g.cuota_actual||0);
+    const ct=parseInt(g.raw?.total_cuotas||g.total_cuotas||0);
     if(!ca||!ct) return;
     const nm=(g.desc||'').replace(/\s*\(cuota.*\)/i,'').trim()||g.id;
-    if(!cuotasGrupos[nm]||ca>cuotasGrupos[nm].ca){
+    if(!cuotasGrupos[nm]){
+      cuotasGrupos[nm]={monto:g.monto, ca, ct};
+    } else if(ca > cuotasGrupos[nm].ca){
       cuotasGrupos[nm]={monto:g.monto, ca, ct};
     }
   });
+  // Solo contar grupos que tienen cuotas restantes
   const cuotasMensuales = Object.values(cuotasGrupos).filter(g=>g.ca<g.ct).reduce((s,g)=>s+g.monto,0);
 
   // Balance: si no hay ingresos y hay gastos → déficit
@@ -1585,12 +1627,24 @@ function fillSelects(){
   fcat2.innerHTML=['<option value="">Todas las categorías</option>',...CFG.cats.map(c=>`<option>${c.name}</option>`)].join('');
   const fmedio=document.getElementById('f-medio');
   fmedio.innerHTML=['<option value="">Seleccionar...</option>',...CFG.medios.map(m=>`<option>${m}</option>`)].join('');
+  // Poblar "Asignado a" con usuarios configurados
+  const fasig=document.getElementById('f-asig');
+  if(fasig){
+    let opts='<option value="rocio">Rocío (solo mío)</option>';
+    CFG.users.forEach(u=>{
+      const slug=u.toLowerCase().replace(/\s+/g,'_');
+      opts+=`<option value="compartido_${slug}">Compartido con ${u} (50/50)</option>`;
+      opts+=`<option value="custom_${slug}">Compartido con ${u} (personalizado)</option>`;
+    });
+    opts+='<option value="compartido">Compartido general (50/50)</option>';
+    opts+='<option value="custom">Personalizado (sin persona)</option>';
+    fasig.innerHTML=opts;
+  }
 }
 
 function fillRepCatSel(){
   const s=document.getElementById('rep-cat-sel');
-  if(s) s.innerHTML=['<option value="">Todas</option>',...CFG.cats.map(c=>`<option value="${c.name}">${c.name}</option>`)].join('');
-  fillRepMesSel();
+  if(s) s.innerHTML=['<option>Todas</option>',...CFG.cats.map(c=>`<option>${c.name}</option>`)].join('');
   // Pre-fill config inputs from localStorage
   try{
     const su=localStorage.getItem('chanchito_script_url');
@@ -1598,34 +1652,10 @@ function fillRepCatSel(){
     if(su){
       const el=document.getElementById('script-url');
       if(el) el.value=su;
-      window._scriptUrl=su;
+      window._scriptUrl=su; // asegurar que esté en memoria
     }
     if(surl){ const el=document.getElementById('sheets-url'); if(el) el.value=surl; }
   }catch(e){}
-}
-
-function fillRepMesSel(){
-  const sel = document.getElementById('rep-mes-sel');
-  if(!sel) return;
-  const MESES_NOM = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-  const mesesSet = new Set();
-  GASTOS_CACHE.forEach(g=>{
-    const p=String(g.fecha||'').split('/');
-    if(p.length===3) mesesSet.add(p[2]+'-'+p[1].padStart(2,'0'));
-  });
-  INGRESOS_CACHE.forEach(i=>{
-    const p=String(i.fecha||'').split('/');
-    if(p.length===3) mesesSet.add(p[2]+'-'+p[1].padStart(2,'0'));
-  });
-  const now = new Date();
-  const curKey = now.getFullYear()+'-'+(now.getMonth()+1+'').padStart(2,'0');
-  if(!mesesSet.has(curKey)) mesesSet.add(curKey);
-  const meses = [...mesesSet].sort((a,b)=>b.localeCompare(a));
-  sel.innerHTML = meses.map(k=>{
-    const [anio,mes] = k.split('-');
-    const label = MESES_NOM[parseInt(mes)-1]+' '+anio;
-    return `<option value="${k}"${k===curKey?' selected':''}>${label}</option>`;
-  }).join('');
 }
 
 // ══════ CAT LIST (dashboard) — desde GASTOS_CACHE ══════
@@ -1862,64 +1892,59 @@ async function savePresup(){
 // ══════ PROYECCION ══════
 function renderProj(){
   const n=parseInt(document.getElementById('proj-range').value||6);
-  // Proyección basada en promedio real de GASTOS_CACHE + eventos futuros
-  const mesActualPj = new Date().getMonth()+1;
-  const anioActualPj = new Date().getFullYear();
-  // Calcular promedio mensual real desde el historial
-  const gastosPorMes = {};
+  const {mes:mesSelPj,anio:anioSelPj}=getMesAnioSel();
+  const now=new Date();
+  const mesHoyPj=now.getMonth()+1, anioHoyPj=now.getFullYear();
+  // Calcular promedio y gastos por mes reales
+  const gastosPorMes={};
   GASTOS_CACHE.forEach(g=>{
     const p=String(g.fecha||'').split('/');
-    if(p.length<3) return;
-    const k=p[2]+'-'+p[1];
-    gastosPorMes[k]=(gastosPorMes[k]||0)+g.monto;
+    if(p.length<3)return;
+    const k=p[2]+'-'+p[1].padStart(2,'0');
+    gastosPorMes[k]=(gastosPorMes[k]||0)+Math.abs(g.monto||0);
   });
-  const mesesConDatos = Object.values(gastosPorMes);
-  const promedioGasto = mesesConDatos.length ? Math.round(mesesConDatos.reduce((a,b)=>a+b,0)/mesesConDatos.length) : 0;
-
-  // Calcular ingresos reales por mes
-  const ingresosPorMes = {};
+  const mesesConDatos=Object.values(gastosPorMes);
+  const promedioGasto=mesesConDatos.length?Math.round(mesesConDatos.reduce((a,b)=>a+b,0)/mesesConDatos.length):0;
+  // Promedio ingresos por mes único
+  const ingPorMes={};
   INGRESOS_CACHE.forEach(i=>{
     const p=String(i.fecha||'').split('/');
-    if(p.length<3) return;
+    if(p.length<3)return;
     const k=p[2]+'-'+p[1].padStart(2,'0');
-    ingresosPorMes[k]=(ingresosPorMes[k]||0)+parseFloat(i.monto||0);
+    ingPorMes[k]=(ingPorMes[k]||0)+parseFloat(i.monto||0);
   });
-  const mesesIngDatos = Object.values(ingresosPorMes);
-  const promedioIngreso = mesesIngDatos.length ? Math.round(mesesIngDatos.reduce((a,b)=>a+b,0)/mesesIngDatos.length) : 0;
-
-  const baseGastos = Array(12).fill(promedioGasto);
-  const baseIng    = Array(12).fill(promedioIngreso);
-
-  // Mes actual con datos reales (gasto e ingreso)
-  const gastoMesActual = gastosPorMes[anioActualPj+'-'+String(mesActualPj).padStart(2,'0')] || 0;
-  const ingresoMesActual = ingresosPorMes[anioActualPj+'-'+String(mesActualPj).padStart(2,'0')] || 0;
-  if(gastoMesActual>0) baseGastos[mesActualPj-1] = gastoMesActual;
-  if(ingresoMesActual>0) baseIng[mesActualPj-1] = ingresoMesActual;
-
-  // Usar ingresos reales para meses pasados también
-  Object.entries(ingresosPorMes).forEach(([k,v])=>{
-    const [yy,mm] = k.split('-');
-    const idx = parseInt(mm)-1;
-    if(parseInt(yy)===anioActualPj && idx>=0 && idx<12) baseIng[idx]=v;
-  });
-  // Agregar eventos futuros
-  eventosIngresos.forEach(ev=>{ if(ev.mes>=1&&ev.mes<=12) baseIng[ev.mes-1]+=ev.monto; });
-  eventosGastos.forEach(ev=>{ if(ev.mes>=1&&ev.mes<=12) baseGastos[ev.mes-1]+=ev.monto; });
-  const mesIdx = mesActualPj - 1; // 0-based index del mes actual
-  const labels=MESES.slice(mesIdx,mesIdx+n);
-  const gastos=baseGastos.slice(mesIdx,mesIdx+n);
-  const ing=baseIng.slice(mesIdx,mesIdx+n);
-  const max=Math.max(...gastos);
+  const ingMeses=Object.values(ingPorMes);
+  const promedioIng=ingMeses.length?Math.round(ingMeses.reduce((a,b)=>a+b,0)/ingMeses.length):0;
+  // Construir n meses desde el mes seleccionado
+  const projLabels=[],projGastos=[],projIng=[];
+  for(let i=0;i<n;i++){
+    const d=new Date(anioSelPj,mesSelPj-1+i,1);
+    const mm=String(d.getMonth()+1).padStart(2,'0');
+    const yy=d.getFullYear();
+    const kMes=yy+'-'+mm;
+    projLabels.push(MESES[d.getMonth()]);
+    const gastoReal=gastosPorMes[kMes];
+    const ingReal=ingPorMes[kMes];
+    const evMes=d.getMonth()+1;
+    let evG=0,evI=0;
+    eventosGastos.forEach(ev=>{if(ev.mes===evMes)evG+=ev.monto;});
+    eventosIngresos.forEach(ev=>{if(ev.mes===evMes)evI+=ev.monto;});
+    projGastos.push((gastoReal!==undefined?gastoReal:promedioGasto)+evG);
+    projIng.push((ingReal!==undefined?ingReal:promedioIng)+evI);
+  }
+  const max=Math.max(...projGastos,1);
   const container=document.getElementById('proj-months');
   const cols=Math.min(n,6);
   container.style.gridTemplateColumns=`repeat(${cols},1fr)`;
-  container.innerHTML=gastos.slice(0,cols).map((v,i)=>{
+  container.innerHTML=projGastos.slice(0,cols).map((v,i)=>{
     const pct=Math.round(v/max*100);
     const color=v>180000?'var(--red)':v>150000?'var(--amber)':'var(--green)';
-    const mesDibujo = mesIdx+1+i; // mes real (1-based)
-    const hasEv=eventosGastos.some(e=>e.mes===mesDibujo)||eventosIngresos.some(e=>e.mes===mesDibujo);
-    return `<div class="proj-m ${i===0?'hoy':''}">
-      <div class="proj-m-nm">${labels[i]}</div>
+    const d=new Date(anioSelPj,mesSelPj-1+i,1);
+    const evMes=d.getMonth()+1;
+    const hasEv=eventosGastos.some(e=>e.mes===evMes)||eventosIngresos.some(e=>e.mes===evMes);
+    const isHoy=d.getFullYear()===anioHoyPj&&d.getMonth()+1===mesHoyPj;
+    return `<div class="proj-m ${isHoy?'hoy':''}">
+      <div class="proj-m-nm">${projLabels[i]}</div>
       <div class="proj-m-v" style="color:${color}">$${(v/1000).toFixed(0)}k</div>
       ${hasEv?`<div class="proj-m-tag">📌 evento</div>`:''}
       <div class="proj-m-bar"><div class="proj-m-fill" style="width:${pct}%;background:${color}"></div></div>
@@ -1930,7 +1955,8 @@ function renderProj(){
   // Cuotas comprometidas desde GASTOS_CACHE — gastos con cuota_actual < total_cuotas
   const cuotasMap = {};
   GASTOS_CACHE.forEach(g=>{
-    const {ca,ct}=getCuotaNums(g);
+    const ca=parseInt(g.cuota_actual||g.raw?.cuota_actual||0);
+    const ct=parseInt(g.total_cuotas||g.raw?.total_cuotas||0);
     if(!ca||!ct||ca>=ct) return;
     const nm = (g.desc||g.descripcion||'').replace(/\s*\(cuota.*\)/i,'').trim();
     if(!cuotasMap[nm]||ca>cuotasMap[nm].ca){
@@ -1958,7 +1984,7 @@ function renderProj(){
   renderEventos();
 
   // Chart
-  if(charts.proj){ charts.proj.data.labels=labels; charts.proj.data.datasets[0].data=ing.slice(0,n); charts.proj.data.datasets[1].data=gastos.slice(0,n); charts.proj.update(); }
+  if(charts.proj){ charts.proj.data.labels=projLabels; charts.proj.data.datasets[0].data=projIng; charts.proj.data.datasets[1].data=projGastos; charts.proj.update(); }
 }
 
 function renderEventos(){
@@ -2044,8 +2070,16 @@ function openEditIngreso(id){
 // ══════ NUEVO GASTO ══════
 function setTodayDate(){ document.getElementById('f-fecha').value=new Date().toISOString().split('T')[0]; }
 function toggleCustomPct(){
-  document.getElementById('custom-pct-group').style.display=
-    document.getElementById('f-asig').value==='custom'?'block':'none';
+  const val=document.getElementById('f-asig').value;
+  const isCustom=val==='custom'||val.startsWith('custom_');
+  document.getElementById('custom-pct-group').style.display=isCustom?'block':'none';
+  const lbl=document.querySelector('#custom-pct-group .fl');
+  if(lbl){
+    if(val.startsWith('custom_')){
+      const nm=val.split('_').slice(1).join('_');
+      lbl.textContent='% Rocío / '+nm.charAt(0).toUpperCase()+nm.slice(1);
+    } else { lbl.textContent='% Rocío / Otra persona'; }
+  }
 }
 function syncPct(changed){
   const r=document.getElementById('pct-r'),a=document.getElementById('pct-a');
@@ -2102,7 +2136,7 @@ async function guardar(){
       categoria:    cat,
       monto:        montoCuota,
       medio_pago:   medio,
-      asignado_a:   asig === 'custom' ? `Compartido (R:${pctR}% A:${pctA}%)` : asig,
+      asignado_a:   asig.startsWith('compartido_') ? `Compartido con ${asig.split('_').slice(1).join(' ')} (50/50)` : asig==='custom' ? `Compartido (R:${pctR}% A:${pctA}%)` : asig.startsWith('custom_') ? `Compartido con ${asig.split('_').slice(1).join(' ')} (R:${pctR}% A:${pctA}%)` : asig,
       cuota_actual: nCuotas>1 ? i+1 : '',
       total_cuotas: nCuotas>1 ? nCuotas : '',
       notas:        i===0 ? notas : `Cuota ${i+1}/${nCuotas} de: ${desc}`,
@@ -2244,269 +2278,59 @@ async function syncSheets(btn, from){
 }
 
 // ══════ REPORTES ══════
-function dl(tipo){
-  const MESES_NOM = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-  const CSS_BASE = `body{font-family:sans-serif;padding:32px;color:#1a1714;font-size:13px;max-width:920px;margin:0 auto}
-    h1{font-size:20px;margin-bottom:4px}h2{font-size:14px;margin:24px 0 10px;font-weight:700}
-    .sub{color:#888;margin-bottom:20px;font-size:12px}
-    .metrics{display:flex;gap:14px;margin-bottom:24px}
-    .m{border:1px solid #e2ddd6;border-radius:8px;padding:13px 16px;flex:1}
+function dl(tipo, mesVal){
+  // Construir contenido HTML del reporte
+  const mesEl = document.getElementById('mes-sel');
+  const mesLabel = mesEl ? mesEl.options[mesEl.selectedIndex].text : 'Mes actual';
+  const mesActual=new Date().getMonth()+1, anioActual=new Date().getFullYear();
+  const gastosDelMes=GASTOS_CACHE.filter(g=>{const p=String(g.fecha||'').split('/');return parseInt(p[1])===mesActual&&parseInt(p[2])===anioActual;});
+  const ingresosDelMes=INGRESOS_CACHE.filter(i=>{const p=String(i.fecha||'').split('/');return parseInt(p[1])===mesActual&&parseInt(p[2])===anioActual;});
+  const totalG=gastosDelMes.reduce((s,g)=>s+g.monto,0);
+  const totalI=ingresosDelMes.reduce((s,i)=>s+parseFloat(i.monto||0),0);
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+  <title>Chanchito — ${mesLabel}</title>
+  <style>
+    body{font-family:sans-serif;padding:32px;color:#1a1714;font-size:13px}
+    h1{font-size:20px;margin-bottom:4px}
+    .sub{color:#888;margin-bottom:24px;font-size:12px}
+    .metrics{display:flex;gap:16px;margin-bottom:24px}
+    .m{border:1px solid #e2ddd6;border-radius:8px;padding:12px 16px;flex:1}
     .m-label{font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
-    .m-val{font-size:21px;font-weight:700;font-family:monospace}
-    .green{color:#1a9e5c}.red{color:#d63a3a}.blue{color:#1a6fb5}.orange{color:#e85d26}
-    table{width:100%;border-collapse:collapse;margin-bottom:20px}
-    th{text-align:left;padding:7px 10px;font-size:10px;text-transform:uppercase;color:#888;border-bottom:2px solid #e2ddd6;white-space:nowrap}
-    td{padding:7px 10px;border-bottom:1px solid #e2ddd6;font-size:12px}
-    tr:hover{background:#fafaf8}
-    .footer{margin-top:28px;font-size:10px;color:#aaa;border-top:1px solid #e2ddd6;padding-top:10px}
-    @media print{body{padding:16px}}`;
+    .m-val{font-size:20px;font-weight:700;font-family:monospace}
+    .green{color:#1a9e5c}.red{color:#d63a3a}.blue{color:#1a6fb5}
+    table{width:100%;border-collapse:collapse;margin-bottom:24px}
+    th{text-align:left;padding:8px 10px;font-size:10px;text-transform:uppercase;color:#888;border-bottom:2px solid #e2ddd6}
+    td{padding:8px 10px;border-bottom:1px solid #e2ddd6;font-size:12px}
+    h2{font-size:14px;margin:20px 0 10px}
+    .footer{margin-top:32px;font-size:10px;color:#aaa;border-top:1px solid #e2ddd6;padding-top:12px}
+  </style></head><body>
+  <h1>🐷 Chanchito — Reporte ${tipo==='anual'?'Anual '+anioActual:mesLabel}</h1>
+  <div class="sub">Generado el ${new Date().toLocaleDateString('es-AR')} · Portal de Rocío</div>
+  <div class="metrics">
+    <div class="m"><div class="m-label">Ingresos</div><div class="m-val blue">$${totalI.toLocaleString('es-AR')}</div></div>
+    <div class="m"><div class="m-label">Gastos</div><div class="m-val red">$${totalG.toLocaleString('es-AR')}</div></div>
+    <div class="m"><div class="m-label">Balance</div><div class="m-val ${totalI-totalG>=0?'green':'red'}">$${(totalI-totalG).toLocaleString('es-AR')}</div></div>
+  </div>
+  <h2>Gastos del mes</h2>
+  <table><thead><tr><th>Fecha</th><th>Descripción</th><th>Categoría</th><th>Medio</th><th>Cuotas</th><th>Monto</th></tr></thead>
+  <tbody>${gastosDelMes.length?gastosDelMes.map(g=>`<tr><td>${g.fecha}</td><td>${g.desc}</td><td>${g.cat}</td><td>${g.medio||'—'}</td><td>${g.cuotas}</td><td>$${g.monto.toLocaleString('es-AR')}</td></tr>`).join(''):'<tr><td colspan="6" style="color:#aaa;text-align:center">Sin gastos este mes</td></tr>'}</tbody>
+  </table>
+  <h2>Ingresos del mes</h2>
+  <table><thead><tr><th>Fecha</th><th>Descripción</th><th>Categoría</th><th>Monto</th></tr></thead>
+  <tbody>${ingresosDelMes.length?ingresosDelMes.map(i=>`<tr><td>${i.fecha}</td><td>${i.descripcion||'—'}</td><td>${i.categoria||'—'}</td><td>$${parseFloat(i.monto||0).toLocaleString('es-AR')}</td></tr>`).join(''):'<tr><td colspan="4" style="color:#aaa;text-align:center">Sin ingresos este mes</td></tr>'}</tbody>
+  </table>
+  <div class="footer">Chanchito 🐷 · Exportado desde el portal de finanzas</div>
+  </body></html>`;
 
-  function abrirPDF(titulo, cuerpoHTML){
-    const win = window.open('','_blank');
-    if(!win){ toast('❌ Permitir ventanas emergentes para descargar PDF','error'); return; }
-    win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Chanchito — ${titulo}</title><style>${CSS_BASE}</style></head><body>${cuerpoHTML}<div class="footer">Chanchito 🐷 · Exportado desde el portal de finanzas · ${new Date().toLocaleString('es-AR')}</div></body></html>`);
-    win.document.close(); win.focus();
-    setTimeout(()=>win.print(), 500);
-    toast('✓ Reporte abierto — Ctrl+P para guardar como PDF','success');
-  }
-
-  // ── helpers de período ──
-  function getMesPeriodo(){
-    // Leer del selector del card de reportes (rep-mes-sel), si no del topbar
-    const s = document.getElementById('rep-mes-sel');
-    if(s && s.value && s.value.includes('-')){
-      const [anio,mes] = s.value.split('-').map(Number);
-      const label = s.options[s.selectedIndex]?.text || MESES_NOM[mes-1]+' '+anio;
-      return {mes, anio, label};
-    }
-    return getMesAnioSel ? {...getMesAnioSel(), label: MESES_NOM[new Date().getMonth()]+' '+new Date().getFullYear()} : {mes:new Date().getMonth()+1, anio:new Date().getFullYear(), label:''};
-  }
-  function filtrarMes(cache, mes, anio){
-    return cache.filter(x=>{ const p=String(x.fecha||'').split('/'); return parseInt(p[1])===mes&&parseInt(p[2])===anio; });
-  }
-  function filtrarAnio(cache, anio){
-    return cache.filter(x=>{ const p=String(x.fecha||'').split('/'); return parseInt(p[2])===anio; });
-  }
-
-  // ════════════════════════════════════
-  // REPORTE MENSUAL — PDF
-  // ════════════════════════════════════
-  if(tipo === 'mensual'){
-    const {mes, anio, label} = getMesPeriodo();
-    const gastos   = filtrarMes(GASTOS_CACHE, mes, anio);
-    const ingresos = filtrarMes(INGRESOS_CACHE, mes, anio);
-    const totalG = gastos.reduce((s,g)=>s+g.monto,0);
-    const totalI = ingresos.reduce((s,i)=>s+parseFloat(i.monto||0),0);
-    // Desglose por categoría
-    const cats = {};
-    gastos.forEach(g=>{ cats[g.cat||'Sin categoría']=(cats[g.cat||'Sin categoría']||0)+g.monto; });
-    const catRows = Object.entries(cats).sort((a,b)=>b[1]-a[1])
-      .map(([c,v])=>`<tr><td>${c}</td><td style="text-align:right;font-family:monospace">$${v.toLocaleString('es-AR')}</td><td style="text-align:right;color:#888">${totalG>0?Math.round(v/totalG*100):0}%</td></tr>`).join('');
-    const gastosRows = gastos.map(g=>`<tr><td>${g.fecha}</td><td>${g.desc}</td><td>${g.cat||'—'}</td><td>${g.medio||'—'}</td><td>${g.cuotas||'—'}</td><td style="text-align:right;font-family:monospace">$${g.monto.toLocaleString('es-AR')}</td></tr>`).join('') || '<tr><td colspan="6" style="color:#aaa;text-align:center;padding:14px">Sin gastos</td></tr>';
-    const ingRows = ingresos.map(i=>`<tr><td>${i.fecha}</td><td>${i.descripcion||'—'}</td><td>${i.categoria||'—'}</td><td style="text-align:right;font-family:monospace">$${parseFloat(i.monto||0).toLocaleString('es-AR')}</td></tr>`).join('') || '<tr><td colspan="4" style="color:#aaa;text-align:center;padding:14px">Sin ingresos</td></tr>';
-    abrirPDF(`${label}`, `
-      <h1>🐷 Reporte Mensual — ${label}</h1>
-      <div class="sub">Generado el ${new Date().toLocaleDateString('es-AR')} · Portal de Rocío</div>
-      <div class="metrics">
-        <div class="m"><div class="m-label">Ingresos</div><div class="m-val blue">$${totalI.toLocaleString('es-AR')}</div></div>
-        <div class="m"><div class="m-label">Gastos</div><div class="m-val red">$${totalG.toLocaleString('es-AR')}</div></div>
-        <div class="m"><div class="m-label">Balance</div><div class="m-val ${totalI-totalG>=0?'green':'red'}">$${(totalI-totalG).toLocaleString('es-AR')}</div></div>
-      </div>
-      <h2>Desglose por categoría</h2>
-      <table><thead><tr><th>Categoría</th><th style="text-align:right">Monto</th><th style="text-align:right">%</th></tr></thead><tbody>${catRows}</tbody></table>
-      <h2>Gastos del mes (${gastos.length} movimientos)</h2>
-      <table><thead><tr><th>Fecha</th><th>Descripción</th><th>Categoría</th><th>Medio</th><th>Cuotas</th><th style="text-align:right">Monto</th></tr></thead><tbody>${gastosRows}</tbody></table>
-      <h2>Ingresos del mes (${ingresos.length} movimientos)</h2>
-      <table><thead><tr><th>Fecha</th><th>Descripción</th><th>Categoría</th><th style="text-align:right">Monto</th></tr></thead><tbody>${ingRows}</tbody></table>`);
-    return;
-  }
-
-  // ════════════════════════════════════
-  // REPORTE MENSUAL — EXCEL
-  // ════════════════════════════════════
-  if(tipo === 'mensualExcel'){
-    const {mes, anio, label} = getMesPeriodo();
-    const gastos   = filtrarMes(GASTOS_CACHE, mes, anio);
-    const ingresos = filtrarMes(INGRESOS_CACHE, mes, anio);
-    const wb = XLSX.utils.book_new();
-    const wsG = XLSX.utils.aoa_to_sheet([['Fecha','Descripción','Categoría','Medio','Cuotas','Monto'],...gastos.map(g=>[g.fecha,g.desc,g.cat||'—',g.medio||'—',g.cuotas||'—',g.monto])]);
-    XLSX.utils.book_append_sheet(wb, wsG, 'Gastos');
-    const wsI = XLSX.utils.aoa_to_sheet([['Fecha','Descripción','Categoría','Monto'],...ingresos.map(i=>[i.fecha,i.descripcion||'—',i.categoria||'—',parseFloat(i.monto||0)])]);
-    XLSX.utils.book_append_sheet(wb, wsI, 'Ingresos');
-    XLSX.writeFile(wb, `chanchito-${anio}-${String(mes).padStart(2,'0')}.xlsx`);
-    toast(`✓ Excel ${label} descargado 🐷`,'success');
-    return;
-  }
-
-  // ════════════════════════════════════
-  // REPORTE ANUAL — PDF
-  // ════════════════════════════════════
-  if(tipo === 'anual'){
-    const selAnio = document.getElementById('rep-anio-sel');
-    const anio = selAnio ? parseInt(selAnio.value)||new Date().getFullYear() : new Date().getFullYear();
-    const gastos   = filtrarAnio(GASTOS_CACHE, anio);
-    const ingresos = filtrarAnio(INGRESOS_CACHE, anio);
-    const totalG = gastos.reduce((s,g)=>s+g.monto,0);
-    const totalI = ingresos.reduce((s,i)=>s+parseFloat(i.monto||0),0);
-    // Resumen por mes
-    const resumenRows = Array.from({length:12},(_,idx)=>{
-      const m = idx+1;
-      const gM = gastos.filter(g=>{const p=String(g.fecha||'').split('/');return parseInt(p[1])===m;}).reduce((s,g)=>s+g.monto,0);
-      const iM = ingresos.filter(i=>{const p=String(i.fecha||'').split('/');return parseInt(p[1])===m;}).reduce((s,i)=>s+parseFloat(i.monto||0),0);
-      if(gM===0&&iM===0) return '';
-      const bal = iM-gM;
-      return `<tr><td>${MESES_NOM[idx]}</td><td style="text-align:right;font-family:monospace;color:#1a6fb5">$${iM.toLocaleString('es-AR')}</td><td style="text-align:right;font-family:monospace;color:#d63a3a">$${gM.toLocaleString('es-AR')}</td><td style="text-align:right;font-family:monospace;color:${bal>=0?'#1a9e5c':'#d63a3a'}">$${bal.toLocaleString('es-AR')}</td></tr>`;
-    }).join('');
-    const gastosRows = gastos.map(g=>`<tr><td>${g.fecha}</td><td>${g.desc}</td><td>${g.cat||'—'}</td><td>${g.medio||'—'}</td><td style="text-align:right;font-family:monospace">$${g.monto.toLocaleString('es-AR')}</td></tr>`).join('') || '<tr><td colspan="5" style="color:#aaa;text-align:center;padding:14px">Sin gastos</td></tr>';
-    abrirPDF(`Anual ${anio}`, `
-      <h1>🐷 Reporte Anual ${anio}</h1>
-      <div class="sub">Generado el ${new Date().toLocaleDateString('es-AR')} · Portal de Rocío</div>
-      <div class="metrics">
-        <div class="m"><div class="m-label">Ingresos</div><div class="m-val blue">$${totalI.toLocaleString('es-AR')}</div></div>
-        <div class="m"><div class="m-label">Gastos</div><div class="m-val red">$${totalG.toLocaleString('es-AR')}</div></div>
-        <div class="m"><div class="m-label">Balance</div><div class="m-val ${totalI-totalG>=0?'green':'red'}">$${(totalI-totalG).toLocaleString('es-AR')}</div></div>
-        <div class="m"><div class="m-label">Ahorro %</div><div class="m-val orange">${totalI>0?Math.round((totalI-totalG)/totalI*100):0}%</div></div>
-      </div>
-      <h2>Resumen mensual</h2>
-      <table><thead><tr><th>Mes</th><th style="text-align:right">Ingresos</th><th style="text-align:right">Gastos</th><th style="text-align:right">Balance</th></tr></thead><tbody>${resumenRows}</tbody></table>
-      <h2>Todos los gastos ${anio} (${gastos.length} movimientos)</h2>
-      <table><thead><tr><th>Fecha</th><th>Descripción</th><th>Categoría</th><th>Medio</th><th style="text-align:right">Monto</th></tr></thead><tbody>${gastosRows}</tbody></table>`);
-    return;
-  }
-
-  // ════════════════════════════════════
-  // REPORTE ANUAL — EXCEL
-  // ════════════════════════════════════
-  if(tipo === 'anualExcel'){
-    const selAnio = document.getElementById('rep-anio-sel');
-    const anio = selAnio ? parseInt(selAnio.value)||new Date().getFullYear() : new Date().getFullYear();
-    const gastos   = filtrarAnio(GASTOS_CACHE, anio);
-    const ingresos = filtrarAnio(INGRESOS_CACHE, anio);
-    const wb = XLSX.utils.book_new();
-    const wsG = XLSX.utils.aoa_to_sheet([['Fecha','Descripción','Categoría','Medio','Cuotas','Monto'],...gastos.map(g=>[g.fecha,g.desc,g.cat||'—',g.medio||'—',g.cuotas||'—',g.monto])]);
-    XLSX.utils.book_append_sheet(wb, wsG, 'Gastos');
-    const wsI = XLSX.utils.aoa_to_sheet([['Fecha','Descripción','Categoría','Monto'],...ingresos.map(i=>[i.fecha,i.descripcion||'—',i.categoria||'—',parseFloat(i.monto||0)])]);
-    XLSX.utils.book_append_sheet(wb, wsI, 'Ingresos');
-    // Resumen mensual
-    const resRows = [['Mes','Ingresos','Gastos','Balance']];
-    for(let m=1;m<=12;m++){
-      const gM=gastos.filter(g=>{const p=String(g.fecha||'').split('/');return parseInt(p[1])===m;}).reduce((s,g)=>s+g.monto,0);
-      const iM=ingresos.filter(i=>{const p=String(i.fecha||'').split('/');return parseInt(p[1])===m;}).reduce((s,i)=>s+parseFloat(i.monto||0),0);
-      if(gM>0||iM>0) resRows.push([MESES_NOM[m-1],iM,gM,iM-gM]);
-    }
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(resRows), 'Resumen mensual');
-    XLSX.writeFile(wb, `chanchito-${anio}.xlsx`);
-    toast(`✓ Excel ${anio} descargado 🐷`,'success');
-    return;
-  }
-
-  // ════════════════════════════════════
-  // REPORTE DE CUOTAS — PDF
-  // ════════════════════════════════════
-  if(tipo === 'cuotas'){
-    const cuotasMap = {};
-    GASTOS_CACHE.forEach(g=>{
-      const {ca,ct}=getCuotaNums(g);
-      if(!ca||!ct) return;
-      const nm=(g.desc||'').replace(/\s*\(cuota.*\)/i,'').trim();
-      if(!cuotasMap[nm]||ca>cuotasMap[nm].ca){
-        const p=String(g.fecha||'').split('/');
-        const fBase=p.length>=3?new Date(parseInt(p[2]),parseInt(p[1])-1,1):new Date();
-        const fFin=new Date(fBase.getFullYear(),fBase.getMonth()+(ct-ca),1);
-        cuotasMap[nm]={nm,ca,ct,monto:g.monto,pct:Math.round(ca/ct*100),hasta:MESES_NOM[fFin.getMonth()]+' '+fFin.getFullYear(),medio:g.medio||'—'};
-      }
-    });
-    const cuotasArr = Object.values(cuotasMap);
-    const totalMensual = cuotasArr.filter(c=>c.ca<c.ct).reduce((s,c)=>s+c.monto,0);
-    const filas = cuotasArr.length
-      ? cuotasArr.map(c=>`<tr><td>${c.nm}</td><td style="text-align:center">${c.ca}/${c.ct}</td><td style="text-align:center">${c.pct}%</td><td style="text-align:right;font-family:monospace">$${c.monto.toLocaleString('es-AR')}</td><td>${c.medio}</td><td>${c.hasta}</td></tr>`).join('')
-      : '<tr><td colspan="6" style="color:#aaa;text-align:center;padding:14px">Sin cuotas activas</td></tr>';
-    abrirPDF('Cuotas activas', `
-      <h1>🐷 Reporte de Cuotas</h1>
-      <div class="sub">Generado el ${new Date().toLocaleDateString('es-AR')} · Portal de Rocío</div>
-      <div class="metrics">
-        <div class="m"><div class="m-label">Cuotas activas</div><div class="m-val orange">${cuotasArr.length}</div></div>
-        <div class="m"><div class="m-label">Compromiso mensual</div><div class="m-val red">$${totalMensual.toLocaleString('es-AR')}</div></div>
-      </div>
-      <h2>Detalle de cuotas</h2>
-      <table><thead><tr><th>Descripción</th><th style="text-align:center">Cuota</th><th style="text-align:center">Progreso</th><th style="text-align:right">Monto/cuota</th><th>Medio</th><th>Vence</th></tr></thead><tbody>${filas}</tbody></table>`);
-    return;
-  }
-
-  // ════════════════════════════════════
-  // REPORTE DE CUOTAS — EXCEL
-  // ════════════════════════════════════
-  if(tipo === 'cuotasExcel'){
-    const cuotasMap2 = {};
-    GASTOS_CACHE.forEach(g=>{
-      const {ca,ct}=getCuotaNums(g);
-      if(!ca||!ct) return;
-      const nm=(g.desc||'').replace(/\s*\(cuota.*\)/i,'').trim();
-      if(!cuotasMap2[nm]||ca>cuotasMap2[nm].ca){
-        const p=String(g.fecha||'').split('/');
-        const fBase=p.length>=3?new Date(parseInt(p[2]),parseInt(p[1])-1,1):new Date();
-        const fFin=new Date(fBase.getFullYear(),fBase.getMonth()+(ct-ca),1);
-        cuotasMap2[nm]={nm,ca,ct,monto:g.monto,hasta:MESES_NOM[fFin.getMonth()]+' '+fFin.getFullYear(),medio:g.medio||'—'};
-      }
-    });
-    const rows = [['Descripción','Cuota actual','Total cuotas','Monto/cuota','Medio','Vence en'],...Object.values(cuotasMap2).map(c=>[c.nm,c.ca,c.ct,c.monto,c.medio,c.hasta])];
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'Cuotas');
-    XLSX.writeFile(wb, 'chanchito-cuotas.xlsx');
-    toast('✓ Excel de cuotas descargado 🐷','success');
-    return;
-  }
-
-  // ════════════════════════════════════
-  // POR CATEGORÍA — PDF
-  // ════════════════════════════════════
-  if(tipo === 'categorias'){
-    const catFiltro = document.getElementById('rep-cat-sel')?.value || '';
-    const {mes, anio, label} = getMesPeriodo();
-    let gastos = filtrarMes(GASTOS_CACHE, mes, anio);
-    if(catFiltro) gastos = gastos.filter(g=>(g.cat||'')===catFiltro);
-    const totalG = gastos.reduce((s,g)=>s+g.monto,0);
-    // Agrupar por categoría
-    const cats = {};
-    GASTOS_CACHE.filter(g=>{const p=String(g.fecha||'').split('/');return parseInt(p[1])===mes&&parseInt(p[2])===anio;})
-      .forEach(g=>{ const c=g.cat||'Sin categoría'; cats[c]=(cats[c]||0)+g.monto; });
-    const catRows = Object.entries(cats).sort((a,b)=>b[1]-a[1])
-      .map(([c,v])=>`<tr ${catFiltro&&c===catFiltro?'style="background:#fff0eb"':''}><td>${c}</td><td style="text-align:right;font-family:monospace">$${v.toLocaleString('es-AR')}</td><td style="text-align:right;color:#888">${(cats[c]?Math.round(v/Object.values(cats).reduce((a,b)=>a+b,0)*100):0)}%</td></tr>`).join('');
-    const detRows = gastos.map(g=>`<tr><td>${g.fecha}</td><td>${g.desc}</td><td>${g.cat||'—'}</td><td>${g.medio||'—'}</td><td style="text-align:right;font-family:monospace">$${g.monto.toLocaleString('es-AR')}</td></tr>`).join('')||'<tr><td colspan="5" style="color:#aaa;text-align:center;padding:14px">Sin gastos</td></tr>';
-    const titulo = catFiltro ? `${catFiltro} — ${label}` : `Todas las categorías — ${label}`;
-    abrirPDF(titulo, `
-      <h1>🐷 Reporte por Categoría — ${titulo}</h1>
-      <div class="sub">Generado el ${new Date().toLocaleDateString('es-AR')} · Portal de Rocío</div>
-      <div class="metrics">
-        <div class="m"><div class="m-label">Total gastos</div><div class="m-val red">$${totalG.toLocaleString('es-AR')}</div></div>
-        <div class="m"><div class="m-label">Movimientos</div><div class="m-val orange">${gastos.length}</div></div>
-      </div>
-      <h2>Gastos por categoría</h2>
-      <table><thead><tr><th>Categoría</th><th style="text-align:right">Monto</th><th style="text-align:right">%</th></tr></thead><tbody>${catRows}</tbody></table>
-      <h2>Detalle${catFiltro?' — '+catFiltro:''} (${gastos.length} movimientos)</h2>
-      <table><thead><tr><th>Fecha</th><th>Descripción</th><th>Categoría</th><th>Medio</th><th style="text-align:right">Monto</th></tr></thead><tbody>${detRows}</tbody></table>`);
-    return;
-  }
-
-  // ════════════════════════════════════
-  // POR CATEGORÍA — EXCEL
-  // ════════════════════════════════════
-  if(tipo === 'categoriasExcel'){
-    const catFiltro = document.getElementById('rep-cat-sel')?.value || '';
-    const {mes, anio, label} = getMesPeriodo();
-    let gastos = filtrarMes(GASTOS_CACHE, mes, anio);
-    if(catFiltro) gastos = gastos.filter(g=>(g.cat||'')===catFiltro);
-    const rows = [['Fecha','Descripción','Categoría','Medio','Monto'],...gastos.map(g=>[g.fecha,g.desc,g.cat||'—',g.medio||'—',g.monto])];
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'Por categoría');
-    XLSX.writeFile(wb, `chanchito-categorias-${anio}-${String(mes).padStart(2,'0')}.xlsx`);
-    toast(`✓ Excel por categoría descargado 🐷`,'success');
-    return;
-  }
-
-  toast('⚠️ Tipo de reporte no reconocido: '+tipo,'warn');
+  const win = window.open('','_blank');
+  if(!win){ toast('❌ Bloqueaste las ventanas emergentes — permitilas para descargar PDF','error'); return; }
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(()=>{ win.print(); }, 400);
+  toast('✓ Reporte abierto — usá Ctrl+P / Guardar como PDF','success');
 }
-
 
 // ══════ CHARTS ══════
 function initCharts(){
@@ -2551,11 +2375,10 @@ function initCharts(){
   });
 
   // Proyección
-  const mesInicioProj = new Date().getMonth(); // 0-based
   charts.proj=new Chart(document.getElementById('ch-proj'),{
     type:'line',
     data:{
-      labels:MESES.slice(mesInicioProj,mesInicioProj+6),
+      labels:MESES.slice(3,9),
       datasets:[
         {label:'Ingresos',data:[0,0,0,0,0,0],borderColor:'#1a6fb5',backgroundColor:'rgba(26,111,181,.07)',tension:.35,pointBackgroundColor:'#1a6fb5',pointRadius:4,fill:true},
         {label:'Gastos',data:[0,0,0,0,0,0],borderColor:'#d63a3a',backgroundColor:'rgba(214,58,58,.06)',tension:.35,pointBackgroundColor:'#d63a3a',pointRadius:4,fill:true,borderDash:[5,3]}
@@ -2856,60 +2679,9 @@ function toggleArchivados(){
 }
 
 function exportCalendario(){
-  const year = parseInt(document.getElementById('cal-year').value || 2026);
-  toast(`↓ Generando Excel del calendario ${year}...`,'info');
-
-  const MESES_NOM = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-  const pagosActivos = PAGOS_FIJOS.filter(p => !ARCHIVADOS.has(p.id));
-
-  // Encabezados: Mes + nombre de cada pago
-  const headers = ['Mes', ...pagosActivos.map(p => p.nombre)];
-
-  // Filas: una por mes
-  const rows = MESES_NOM.map((nm, idx) => {
-    const mes = idx + 1;
-    const row = [nm];
-    pagosActivos.forEach(p => {
-      const aplica = mes >= p.desde && mes <= p.hasta;
-      if (!aplica) { row.push('N/A'); return; }
-      row.push(isPaid(p.id, year, mes) ? 'Pagado' : 'Pendiente');
-    });
-    return row;
-  });
-
-  // Fila de montos
-  const montoRow = ['Monto mensual', ...pagosActivos.map(p => p.monto > 0 ? p.monto : 'Variable')];
-
-  // Resumen
-  let totalMes = 0;
-  const mesHoy = new Date().getMonth() + 1;
-  const anioHoy = new Date().getFullYear();
-  if (year === anioHoy) {
-    pagosActivos.forEach(p => {
-      if (mesHoy >= p.desde && mesHoy <= p.hasta && p.monto > 0) totalMes += p.monto;
-    });
-  }
-
-  const wb = XLSX.utils.book_new();
-  const wsData = [
-    [`Calendario de Pagos ${year} — Chanchito 🐷`],
-    [],
-    headers,
-    montoRow,
-    [],
-    ...rows,
-    [],
-    [`Compromiso mensual estimado: $${totalMes.toLocaleString('es-AR')}`],
-    [`Exportado: ${new Date().toLocaleDateString('es-AR')}`]
-  ];
-  const ws = XLSX.utils.aoa_to_sheet(wsData);
-
-  // Anchos de columna
-  ws['!cols'] = [{ wch: 14 }, ...pagosActivos.map(() => ({ wch: 13 }))];
-
-  XLSX.utils.book_append_sheet(wb, ws, `Calendario ${year}`);
-  XLSX.writeFile(wb, `chanchito-calendario-${year}.xlsx`);
-  setTimeout(()=>toast('✓ Archivo listo para descargar 🐷','success'), 400);
+  const year = document.getElementById('cal-year').value;
+  toast(`↓ Exportando calendario ${year} a Excel...`,'info');
+  setTimeout(()=>toast('✓ Archivo listo para descargar','success'),1200);
 }
 
 // Cerrar modal al hacer click fuera
@@ -3158,6 +2930,190 @@ function impPad(n){return String(n).padStart(2,'0');}
 function impNow(){const d=new Date();return impPad(d.getDate())+'/'+impPad(d.getMonth()+1)+'/'+d.getFullYear()+' '+impPad(d.getHours())+':'+impPad(d.getMinutes());}
 function impDateStr(){const d=new Date();return d.getFullYear()+impPad(d.getMonth()+1)+impPad(d.getDate());}
 function impDownload(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();URL.revokeObjectURL(a.href);}
+
+// ══════ DEUDAS ══════
+let DEUDAS = []; // {id, tipo:'me_deben'|'debo', persona, monto, fecha, desc, notas, saldada:false}
+
+function renderDeudas(){
+  const pendMeDeben = DEUDAS.filter(d=>d.tipo==='me_deben'&&!d.saldada);
+  const pendDebo    = DEUDAS.filter(d=>d.tipo==='debo'&&!d.saldada);
+  const saldadas    = DEUDAS.filter(d=>d.saldada);
+  const totMeDeben  = pendMeDeben.reduce((s,d)=>s+d.monto,0);
+  const totDebo     = pendDebo.reduce((s,d)=>s+d.monto,0);
+  const balance     = totMeDeben - totDebo;
+
+  const set=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v;};
+  set('d-me-deben','$'+totMeDeben.toLocaleString('es-AR'));
+  set('d-me-deben-count',pendMeDeben.length+' deuda'+(pendMeDeben.length!==1?'s':''));
+  set('d-debo','$'+totDebo.toLocaleString('es-AR'));
+  set('d-debo-count',pendDebo.length+' deuda'+(pendDebo.length!==1?'s':''));
+  const balEl=document.getElementById('d-balance');
+  if(balEl){
+    balEl.textContent=(balance>=0?'+':'')+' $'+Math.abs(balance).toLocaleString('es-AR');
+    balEl.className='metric-value '+(balance>=0?'green':'red');
+  }
+
+  // Lista me deben
+  const listMD=document.getElementById('deudas-me-deben-list');
+  if(listMD){
+    if(!pendMeDeben.length){
+      listMD.innerHTML='<div class="empty" style="padding:20px"><div class="empty-icon">🎉</div><div>Nadie te debe plata</div></div>';
+    } else {
+      listMD.innerHTML=pendMeDeben.map(d=>deudaCard(d,'me_deben')).join('');
+    }
+  }
+
+  // Lista debo
+  const listD=document.getElementById('deudas-debo-list');
+  if(listD){
+    if(!pendDebo.length){
+      listD.innerHTML='<div class="empty" style="padding:20px"><div class="empty-icon">✅</div><div>No debés plata a nadie</div></div>';
+    } else {
+      listD.innerHTML=pendDebo.map(d=>deudaCard(d,'debo')).join('');
+    }
+  }
+
+  // Historial
+  const listH=document.getElementById('deudas-historial-list');
+  if(listH){
+    if(!saldadas.length){
+      listH.innerHTML='<div style="text-align:center;padding:16px;font-size:12px;color:var(--text3)">Sin deudas saldadas aún</div>';
+    } else {
+      listH.innerHTML=saldadas.map(d=>`
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);opacity:0.65">
+          <span style="font-size:16px">${d.tipo==='me_deben'?'💰':'📤'}</span>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:12px;font-weight:600;color:var(--text);text-decoration:line-through">${d.desc||'Sin descripción'}</div>
+            <div style="font-size:11px;color:var(--text3)">${d.persona} · ${d.fecha} · ${d.tipo==='me_deben'?'Me debía':'Le debía'}</div>
+          </div>
+          <span class="mono" style="font-size:13px;font-weight:700;color:var(--text3)">$${d.monto.toLocaleString('es-AR')}</span>
+          <span class="badge badge-green" style="font-size:10px">✓ Saldada</span>
+          <button onclick="delDeuda('${d.id}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:2px 4px" title="Eliminar">🗑</button>
+        </div>`).join('');
+    }
+  }
+
+  // Guardar en localStorage
+  try{ localStorage.setItem('chanchito_deudas', JSON.stringify(DEUDAS)); }catch(e){}
+}
+
+function deudaCard(d, tipo){
+  const isMe = tipo==='me_deben';
+  return `<div style="display:flex;align-items:flex-start;gap:10px;padding:12px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);margin-bottom:8px">
+    <span style="font-size:20px;flex-shrink:0">${isMe?'💰':'📤'}</span>
+    <div style="flex:1;min-width:0">
+      <div style="font-size:13px;font-weight:700;color:var(--text)">${d.desc||'Sin descripción'}</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:2px">
+        <strong>${d.persona}</strong> · ${d.fecha}${d.notas?` · ${d.notas}`:''}
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0">
+      <span class="mono" style="font-size:15px;font-weight:700;color:${isMe?'var(--green)':'var(--red)'}">
+        ${isMe?'+':'-'}$${d.monto.toLocaleString('es-AR')}
+      </span>
+      <div style="display:flex;gap:5px">
+        <button class="btn btn-sm" style="background:var(--green-lt);color:var(--green);border:1px solid #b6e8d2;padding:4px 10px;font-size:11px"
+          onclick="saldarDeuda('${d.id}')">✓ ${isMe?'Cobrada':'Pagada'}</button>
+        <button class="btn btn-ghost btn-sm" onclick="editDeuda('${d.id}')" style="padding:4px 8px;font-size:11px">✏</button>
+        <button onclick="delDeuda('${d.id}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:4px" title="Eliminar">🗑</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function openAddDeuda(tipo){
+  document.getElementById('deuda-tipo').value=tipo;
+  document.getElementById('deuda-edit-id').value='';
+  document.getElementById('deuda-monto').value='';
+  document.getElementById('deuda-desc').value='';
+  document.getElementById('deuda-notas').value='';
+  document.getElementById('deuda-fecha').value=new Date().toISOString().split('T')[0];
+  document.getElementById('deuda-modal-title').textContent=tipo==='me_deben'?'Nueva deuda — me deben':'Nueva deuda — debo';
+  document.getElementById('deuda-modal-sub').textContent=tipo==='me_deben'?'Registrá plata que alguien te debe a vos':'Registrá plata que vos le debés a alguien';
+  // Poblar personas
+  const sel=document.getElementById('deuda-persona');
+  sel.innerHTML='<option value="">Seleccionar persona...</option>'+CFG.users.map(u=>`<option value="${u}">${u}</option>`).join('');
+  const modal=document.getElementById('modal-deuda');
+  modal.style.display='flex';
+}
+
+function editDeuda(id){
+  const d=DEUDAS.find(x=>x.id===id);
+  if(!d)return;
+  openAddDeuda(d.tipo);
+  document.getElementById('deuda-edit-id').value=id;
+  document.getElementById('deuda-persona').value=d.persona;
+  document.getElementById('deuda-monto').value=d.monto;
+  document.getElementById('deuda-desc').value=d.desc;
+  document.getElementById('deuda-notas').value=d.notas||'';
+  document.getElementById('deuda-fecha').value=d.fecha.split('/').reverse().join('-');
+  document.getElementById('deuda-modal-title').textContent='Editar deuda';
+}
+
+function closeDeudaModal(){
+  document.getElementById('modal-deuda').style.display='none';
+}
+
+function saveDeuda(){
+  const tipo=document.getElementById('deuda-tipo').value;
+  const persona=document.getElementById('deuda-persona').value.trim();
+  const monto=parseFloat(document.getElementById('deuda-monto').value);
+  const fechaRaw=document.getElementById('deuda-fecha').value;
+  const desc=document.getElementById('deuda-desc').value.trim();
+  const notas=document.getElementById('deuda-notas').value.trim();
+  const editId=document.getElementById('deuda-edit-id').value;
+  if(!persona){toast('⚠️ Seleccioná o ingresá una persona','warn');return;}
+  if(!monto||monto<=0){toast('⚠️ Ingresá un monto válido','warn');return;}
+  if(!desc){toast('⚠️ Describí la deuda','warn');return;}
+  const [y,m,d]=fechaRaw.split('-');
+  const fecha=d+'/'+m+'/'+y;
+  if(editId){
+    const idx=DEUDAS.findIndex(x=>x.id===editId);
+    if(idx>=0) DEUDAS[idx]={...DEUDAS[idx],tipo,persona,monto,fecha,desc,notas};
+    toast('✓ Deuda actualizada','success');
+  } else {
+    DEUDAS.push({id:'d'+Date.now(),tipo,persona,monto,fecha,desc,notas,saldada:false});
+    toast('✓ Deuda registrada','success');
+  }
+  closeDeudaModal();
+  renderDeudas();
+}
+
+function saldarDeuda(id){
+  const d=DEUDAS.find(x=>x.id===id);
+  if(!d)return;
+  const msg=d.tipo==='me_deben'
+    ?`¿${d.persona} te pagó $${d.monto.toLocaleString('es-AR')}?`
+    :`¿Le pagaste $${d.monto.toLocaleString('es-AR')} a ${d.persona}?`;
+  if(!confirm(msg+' Esto la marcará como saldada.'))return;
+  d.saldada=true;
+  toast('✅ Deuda saldada y movida al historial','success');
+  renderDeudas();
+}
+
+function delDeuda(id){
+  if(!confirm('¿Eliminar esta deuda?'))return;
+  DEUDAS=DEUDAS.filter(x=>x.id!==id);
+  toast('🗑 Deuda eliminada','warn');
+  renderDeudas();
+}
+
+function toggleHistorialDeudas(btn){
+  const el=document.getElementById('deudas-historial');
+  if(!el)return;
+  const vis=el.style.display!=='none';
+  el.style.display=vis?'none':'block';
+  if(btn)btn.textContent=vis?'Ver historial ▾':'Ocultar historial ▴';
+}
+
+// Cargar deudas desde localStorage al iniciar
+function loadDeudas(){
+  try{
+    const saved=localStorage.getItem('chanchito_deudas');
+    if(saved)DEUDAS=JSON.parse(saved);
+  }catch(e){ DEUDAS=[]; }
+}
+loadDeudas();
 
 </script>
 </body>
