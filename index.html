@@ -1382,6 +1382,7 @@ function nav(id,el){
   document.getElementById('ttitle').textContent=titles[id]||id;
   if(id==='deudas') renderDeudas();
   if(id==='perfil') initPerfil();
+  if(id==='reportes') fillRepCatSel();
 }
 
 // ══════ INIT ══════
@@ -2095,6 +2096,16 @@ document.addEventListener('change',e=>{
 // ══════ PRESUPUESTO ══════
 function renderPresupuesto(){
   const grid=document.getElementById('presup-grid');
+
+  // Calcular gastos reales por categoría PRIMERO (GASTOS_CACHE ya está filtrado por mes)
+  const gastosCat={};
+  GASTOS_CACHE.forEach(g=>{
+    const cat=g.cat||g.categoria||'';
+    if(cat) gastosCat[cat]=(gastosCat[cat]||0)+montoPropio(g);
+  });
+  // Actualizar d.gasto en PRESUP_BASE antes de renderizar
+  PRESUP_BASE.forEach(d=>{ d.gasto=gastosCat[d.cat]||0; });
+
   grid.innerHTML=PRESUP_BASE.map((d,i)=>{
     const pct=d.limite>0?Math.round(d.gasto/d.limite*100):(d.gasto>0?100:0);
     const cls=pct>=100?'p-over':pct>=80?'p-warn':'p-ok';
@@ -2118,7 +2129,7 @@ function renderPresupuesto(){
   document.getElementById('presup-edit-form').innerHTML=PRESUP_BASE.map((d,i)=>`
     <div class="fg"><label class="fl">${d.cat}</label>
     <input class="fi" id="pl-${i}" type="number" value="${d.limite}"></div>`).join('');
-  // Refrescar chart con datos reales
+  // Refrescar chart (d.gasto ya está actualizado)
   refreshPresupChart();
 }
 
