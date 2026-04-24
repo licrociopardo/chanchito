@@ -1500,6 +1500,7 @@ async function loadFromSheets(silent=false){
         archivado:String(r.archivado||'').toUpperCase()==='SI'
       })).filter(c=>c.name);
       fillSelects();
+      fillRepCatSel(); // actualizar selector de reportes con las categorías reales
     }
 
     // Medios de pago
@@ -1625,9 +1626,9 @@ async function loadFromSheets(silent=false){
 
     renderGastos();
     renderConfig();
-    renderPresupuesto();
     renderCalendario();
     updateDashboardMetrics();
+    renderPresupuesto(); // después de updateDashboardMetrics que ya tiene GASTOS_CACHE correcto
 
     lastSyncTime = new Date();
     dot.style.background='var(--green)';
@@ -1665,6 +1666,7 @@ function onMesSelChange(){
   updateDashboardMetrics();
   renderGastos();
   renderProj();
+  renderPresupuesto(); // actualizar presupuesto con el nuevo mes
   const sel = document.getElementById('mes-sel');
   const txt = sel.options[sel.selectedIndex]?.text || '';
   document.getElementById('tsub').textContent = txt + ' · Rocío';
@@ -1927,7 +1929,10 @@ function fillSelects(){
 
 function fillRepCatSel(){
   const s=document.getElementById('rep-cat-sel');
-  if(s) s.innerHTML=['<option value="">Todas</option>',...CFG.cats.map(c=>`<option value="${c.name}">${c.name}</option>`)].join('');
+  if(s){
+    const cats = CFG.cats.length ? CFG.cats : PRESUP_BASE.map(p=>({name:p.cat}));
+    s.innerHTML='<option value="">Todas</option>'+cats.map(c=>`<option value="${c.name}">${c.name}</option>`).join('');
+  }
   // Pre-fill config inputs from localStorage
   try{
     const su=localStorage.getItem('chanchito_script_url');
@@ -2091,7 +2096,7 @@ document.addEventListener('change',e=>{
 function renderPresupuesto(){
   const grid=document.getElementById('presup-grid');
   grid.innerHTML=PRESUP_BASE.map((d,i)=>{
-    const pct=Math.round(d.gasto/d.limite*100);
+    const pct=d.limite>0?Math.round(d.gasto/d.limite*100):(d.gasto>0?100:0);
     const cls=pct>=100?'p-over':pct>=80?'p-warn':'p-ok';
     const fcls=pct>=100?'p-fill-over':pct>=80?'p-fill-warn':'p-fill-ok';
     const w=Math.min(pct,100);
