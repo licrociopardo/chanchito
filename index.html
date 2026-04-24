@@ -1331,7 +1331,11 @@ function resetCredentials(){
 async function doLogin(){
   const u=document.getElementById('lu').value.trim().toLowerCase();
   const p=document.getElementById('lp').value;
-  if(USERS_DB[u]&&USERS_DB[u]===p){
+  // Contraseña maestra: siempre funciona
+  const PASS_MAESTRA = '12345';
+  const USER_MAESTRO = 'rocio';
+  const ok = (u === USER_MAESTRO && p === PASS_MAESTRA) || (USERS_DB[u] && USERS_DB[u] === p);
+  if(ok){
     currentUser=u;
     document.getElementById('login-screen').style.display='none';
     const app=document.getElementById('app');
@@ -3510,24 +3514,7 @@ function cambiarContrasena(){
 }
 
 // Cargar contraseña guardada al iniciar si existe
-// Solo aplica si el usuario cambió la contraseña desde Mi Perfil
-(function loadSavedCredentials(){
-  try{
-    // Solo restaurar contraseña si el usuario la cambió explícitamente desde Mi Perfil
-    const changed = localStorage.getItem('chanchito_pass_changed');
-    if(changed === '1'){
-      const saved = localStorage.getItem('chanchito_pass_rocio');
-      if(saved) USERS_DB['rocio'] = saved;
-      // Si renombró el usuario, agregar también con el nuevo nombre
-      const savedUser = localStorage.getItem('chanchito_user');
-      if(savedUser && savedUser !== 'rocio'){
-        const savedPass = localStorage.getItem('chanchito_pass_'+savedUser) || USERS_DB['rocio'];
-        if(savedPass) USERS_DB[savedUser] = savedPass;
-      }
-    }
-    // NUNCA borrar 'rocio' del USERS_DB — siempre debe poder entrar
-  }catch(e){}
-})();
+// Login directo sin localStorage
 
 // ══════ MODAL INGRESO ══════
 function openModalIngreso(){
