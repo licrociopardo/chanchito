@@ -2461,9 +2461,8 @@ function dl(tipo, mesVal){
   const totalG=gastosDelMes.reduce((s,g)=>s+g.monto,0);
   const totalI=ingresosDelMes.reduce((s,i)=>s+parseFloat(i.monto||0),0);
 
-  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
-  <title>Chanchito — ${mesLabel}</title>
-  <style>
+  // Estilos base compartidos
+  const estilosBase = `
     body{font-family:sans-serif;padding:32px;color:#1a1714;font-size:13px}
     h1{font-size:20px;margin-bottom:4px}
     .sub{color:#888;margin-bottom:24px;font-size:12px}
@@ -2477,76 +2476,82 @@ function dl(tipo, mesVal){
     td{padding:8px 10px;border-bottom:1px solid #e2ddd6;font-size:12px}
     h2{font-size:14px;margin:20px 0 10px}
     .footer{margin-top:32px;font-size:10px;color:#aaa;border-top:1px solid #e2ddd6;padding-top:12px}
-  </style></head><body>
-  <h1>🐷 Chanchito — Reporte ${tipo==='anual'?'Anual '+anio:mesLabel}</h1>
-  <div class="sub">Generado el ${new Date().toLocaleDateString('es-AR')} · Portal de Rocío</div>
-  <div class="metrics">
-    <div class="m"><div class="m-label">Ingresos</div><div class="m-val blue">$${totalI.toLocaleString('es-AR')}</div></div>
-    <div class="m"><div class="m-label">Gastos</div><div class="m-val red">$${totalG.toLocaleString('es-AR')}</div></div>
-    <div class="m"><div class="m-label">Balance</div><div class="m-val ${totalI-totalG>=0?'green':'red'}">$${(totalI-totalG).toLocaleString('es-AR')}</div></div>
-  </div>
-  <h2>Gastos del mes</h2>
-  <table><thead><tr><th>Fecha</th><th>Descripción</th><th>Categoría</th><th>Medio</th><th>Cuotas</th><th>Monto</th></tr></thead>
-  <tbody>${gastosDelMes.length?gastosDelMes.map(g=>`<tr><td>${g.fecha}</td><td>${g.desc}</td><td>${g.cat}</td><td>${g.medio||'—'}</td><td>${g.cuotas}</td><td>$${g.monto.toLocaleString('es-AR')}</td></tr>`).join(''):'<tr><td colspan="6" style="color:#aaa;text-align:center">Sin gastos este mes</td></tr>'}</tbody>
-  </table>
-  <h2>Ingresos del mes</h2>
-  <table><thead><tr><th>Fecha</th><th>Descripción</th><th>Categoría</th><th>Monto</th></tr></thead>
-  <tbody>${ingresosDelMes.length?ingresosDelMes.map(i=>`<tr><td>${i.fecha}</td><td>${i.descripcion||'—'}</td><td>${i.categoria||'—'}</td><td>$${parseFloat(i.monto||0).toLocaleString('es-AR')}</td></tr>`).join(''):'<tr><td colspan="4" style="color:#aaa;text-align:center">Sin ingresos este mes</td></tr>'}</tbody>
-  </table>
-  <div class="footer">Chanchito 🐷 · Exportado desde el portal de finanzas</div>
-  </body></html>`;
+  \`;
+  const mkHeader = (titulo, sub) => \`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>\${titulo}</title><style>\${estilosBase}</style></head><body><h1>\${titulo}</h1><div class="sub">\${sub}</div>\`;
+  const mkFooter = '<div class="footer">Chanchito 🐷 · Exportado desde el portal de finanzas</div></body></html>';
+  const fechaHoy = new Date().toLocaleDateString('es-AR');
+  let finalHTML = '';
 
-  // Contenido extra según tipo de reporte
-  let extraHTML = '';
-
-  if(tipo === 'anual'){
-    // Tabla mensual del año
-    const mesesAnio = [];
-    for(let m=1;m<=12;m++){
-      const gM = allG.filter(g=>{const p=String(g.fecha||'').split('/');return p.length>=3&&parseInt(p[1])===m&&parseInt(p[2])===anio;});
-      const iM = INGRESOS_CACHE.filter(i=>{const p=String(i.fecha||'').split('/');return p.length>=3&&parseInt(p[1])===m&&parseInt(p[2])===anio;});
-      const tG = gM.reduce((s,g)=>s+g.monto,0);
-      const tI = iM.reduce((s,i)=>s+parseFloat(i.monto||0),0);
-      if(tG>0||tI>0) mesesAnio.push({mes:MESES[m-1],tG,tI,bal:tI-tG});
-    }
-    extraHTML = '<h2>Evolución mensual '+anio+'</h2><table><thead><tr><th>Mes</th><th>Ingresos</th><th>Gastos</th><th>Balance</th></tr></thead><tbody>'+
-      mesesAnio.map(r=>'<tr><td>'+r.mes+'</td><td class="blue">$'+r.tI.toLocaleString('es-AR')+'</td><td class="red">$'+r.tG.toLocaleString('es-AR')+'</td><td class="'+(r.bal>=0?'green':'red')+'">$'+r.bal.toLocaleString('es-AR')+'</td></tr>').join('')+
-      '</tbody></table>';
-  }
-
+  // ── CUOTAS: reporte propio sin tabla de gastos del mes
   if(tipo === 'cuotas'){
-    // Cuotas activas: todas las que ca < ct (no terminaron)
-    const cuotasActRep = allG.filter(g=>{
+    const cuotasRep = allG.filter(g=>{
       const ca=parseInt(g.cuota_actual||0), ct=parseInt(g.total_cuotas||0);
       return ca>0 && ct>0 && ca<ct;
-    }).sort((a,b)=>{
-      // Ordenar por cuotas restantes desc
-      const rA=parseInt(a.total_cuotas)-parseInt(a.cuota_actual);
-      const rB=parseInt(b.total_cuotas)-parseInt(b.cuota_actual);
-      return rB-rA;
-    });
-    const totalCuotasMes = cuotasActRep.reduce((s,g)=>s+g.monto,0);
-    extraHTML = '<h2>Cuotas activas — resumen</h2>'+
-      '<p style="margin-bottom:12px;font-size:12px;color:#555">Compromiso mensual total: <strong>$'+totalCuotasMes.toLocaleString('es-AR')+'</strong> · '+cuotasActRep.length+' cuotas pendientes</p>'+
+    }).sort((a,b)=>(parseInt(b.total_cuotas)-parseInt(b.cuota_actual))-(parseInt(a.total_cuotas)-parseInt(a.cuota_actual)));
+    const totalMes = cuotasRep.reduce((s,g)=>s+g.monto,0);
+    finalHTML = mkHeader('🐷 Chanchito — Cuotas activas','Generado el '+fechaHoy+' · Portal de Rocío')+
+      '<div class="metrics">'+
+      '<div class="m"><div class="m-label">Cuotas activas</div><div class="m-val blue">'+cuotasRep.length+'</div></div>'+
+      '<div class="m"><div class="m-label">Compromiso mensual</div><div class="m-val red">$'+totalMes.toLocaleString('es-AR')+'</div></div>'+
+      '</div>'+
       '<table><thead><tr><th>Descripción</th><th>Cuota</th><th>Restantes</th><th>Monto/cuota</th></tr></thead><tbody>'+
-      (cuotasActRep.length ? cuotasActRep.map(g=>'<tr><td>'+g.desc+'</td><td>'+g.cuota_actual+'/'+g.total_cuotas+'</td><td>'+(parseInt(g.total_cuotas)-parseInt(g.cuota_actual))+'</td><td>$'+g.monto.toLocaleString('es-AR')+'</td></tr>').join('') : '<tr><td colspan="4" style="color:#aaa;text-align:center">Sin cuotas activas</td></tr>')+
-      '</tbody></table>';
-    // Para cuotas, el título del reporte no usa mesLabel
-    mesLabel = 'Cuotas activas';
+      (cuotasRep.length ? cuotasRep.map(g=>'<tr><td>'+g.desc+'</td><td>'+g.cuota_actual+'/'+g.total_cuotas+'</td><td>'+(parseInt(g.total_cuotas)-parseInt(g.cuota_actual))+'</td><td>$'+g.monto.toLocaleString('es-AR')+'</td></tr>').join('') : '<tr><td colspan="4" style="color:#aaa;text-align:center">Sin cuotas activas</td></tr>')+
+      '</tbody></table>'+mkFooter;
   }
 
-  if(tipo === 'categorias'){
+  // ── CATEGORÍAS: historial completo filtrado por categoría
+  else if(tipo === 'categorias'){
     const catSel = document.getElementById('rep-cat-sel')?.value||'';
-    const gastosRep = !catSel ? gastosDelMes : gastosDelMes.filter(g=>g.cat===catSel);
-    const byCat = {};
-    gastosRep.forEach(g=>{ byCat[g.cat||'Sin cat']=(byCat[g.cat||'Sin cat']||0)+g.monto; });
-    extraHTML = '<h2>Gastos por categoría — '+mesLabel+'</h2><table><thead><tr><th>Categoría</th><th>Total</th><th>% del gasto</th></tr></thead><tbody>'+
-      Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([cat,tot])=>'<tr><td>'+cat+'</td><td>$'+tot.toLocaleString('es-AR')+'</td><td>'+(totalG>0?Math.round(tot/totalG*100):0)+'%</td></tr>').join('')+
-      '</tbody></table>';
+    const catLabel = catSel||'Todas las categorías';
+    const gastosRep = !catSel ? allG : allG.filter(g=>g.cat===catSel);
+    const byCat={}, byMes={};
+    const totalRepG = gastosRep.reduce((s,g)=>s+g.monto,0);
+    gastosRep.forEach(g=>{
+      byCat[g.cat||'Sin cat']=(byCat[g.cat||'Sin cat']||0)+g.monto;
+      const p=String(g.fecha||'').split('/');
+      if(p.length>=3){ const k=MESES[parseInt(p[1])-1]+' '+p[2]; byMes[k]=(byMes[k]||0)+g.monto; }
+    });
+    finalHTML = mkHeader('🐷 Chanchito — Por categoría: '+catLabel,'Generado el '+fechaHoy+' · Historial completo')+
+      '<div class="metrics">'+
+      '<div class="m"><div class="m-label">Total histórico</div><div class="m-val red">$'+totalRepG.toLocaleString('es-AR')+'</div></div>'+
+      '<div class="m"><div class="m-label">Transacciones</div><div class="m-val blue">'+gastosRep.length+'</div></div>'+
+      '</div>'+
+      '<h2>Por categoría</h2><table><thead><tr><th>Categoría</th><th>Total</th><th>%</th></tr></thead><tbody>'+
+      Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([cat,tot])=>'<tr><td>'+cat+'</td><td>$'+tot.toLocaleString('es-AR')+'</td><td>'+(totalRepG>0?Math.round(tot/totalRepG*100):0)+'%</td></tr>').join('')+
+      '</tbody></table>'+
+      '<h2>Evolución mensual</h2><table><thead><tr><th>Mes</th><th>Total</th></tr></thead><tbody>'+
+      Object.entries(byMes).map(([mes,tot])=>'<tr><td>'+mes+'</td><td>$'+tot.toLocaleString('es-AR')+'</td></tr>').join('')+
+      '</tbody></table>'+mkFooter;
   }
 
-  // Insertar contenido extra en el HTML del reporte
-  const finalHTML = html.replace('</body></html>', extraHTML + '</body></html>');
+  // ── MENSUAL / ANUAL
+  else {
+    let cuerpo = '';
+    if(tipo==='anual'){
+      const mesesAnio=[];
+      for(let m2=1;m2<=12;m2++){
+        const gM=allG.filter(g=>{const p=String(g.fecha||'').split('/');return p.length>=3&&parseInt(p[1])===m2&&parseInt(p[2])===anio;});
+        const iM=INGRESOS_CACHE.filter(i=>{const p=String(i.fecha||'').split('/');return p.length>=3&&parseInt(p[1])===m2&&parseInt(p[2])===anio;});
+        const tG=gM.reduce((s,g)=>s+g.monto,0), tI=iM.reduce((s,i)=>s+parseFloat(i.monto||0),0);
+        if(tG>0||tI>0) mesesAnio.push({mes:MESES[m2-1],tG,tI,bal:tI-tG});
+      }
+      cuerpo='<h2>Evolución mensual '+anio+'</h2><table><thead><tr><th>Mes</th><th>Ingresos</th><th>Gastos</th><th>Balance</th></tr></thead><tbody>'+
+        mesesAnio.map(r=>'<tr><td>'+r.mes+'</td><td class="blue">$'+r.tI.toLocaleString('es-AR')+'</td><td class="red">$'+r.tG.toLocaleString('es-AR')+'</td><td class="'+(r.bal>=0?'green':'red')+'">$'+r.bal.toLocaleString('es-AR')+'</td></tr>').join('')+'</tbody></table>';
+    } else {
+      cuerpo='<h2>Gastos del mes</h2>'+
+        '<table><thead><tr><th>Fecha</th><th>Descripción</th><th>Categoría</th><th>Medio</th><th>Cuotas</th><th>Monto</th></tr></thead><tbody>'+
+        (gastosDelMes.length?gastosDelMes.map(g=>'<tr><td>'+g.fecha+'</td><td>'+g.desc+'</td><td>'+g.cat+'</td><td>'+(g.medio||'—')+'</td><td>'+g.cuotas+'</td><td>$'+g.monto.toLocaleString('es-AR')+'</td></tr>').join(''):'<tr><td colspan="6" style="color:#aaa;text-align:center">Sin gastos este mes</td></tr>')+'</tbody></table>'+
+        '<h2>Ingresos del mes</h2>'+
+        '<table><thead><tr><th>Fecha</th><th>Descripción</th><th>Categoría</th><th>Monto</th></tr></thead><tbody>'+
+        (ingresosDelMes.length?ingresosDelMes.map(i=>'<tr><td>'+i.fecha+'</td><td>'+(i.descripcion||'—')+'</td><td>'+(i.categoria||'—')+'</td><td>$'+parseFloat(i.monto||0).toLocaleString('es-AR')+'</td></tr>').join(''):'<tr><td colspan="4" style="color:#aaa;text-align:center">Sin ingresos este mes</td></tr>')+'</tbody></table>';
+    }
+    finalHTML = mkHeader('🐷 Chanchito — Reporte '+(tipo==='anual'?'Anual '+anio:mesLabel),'Generado el '+fechaHoy+' · Portal de Rocío')+
+      '<div class="metrics">'+
+      '<div class="m"><div class="m-label">Ingresos</div><div class="m-val blue">$'+totalI.toLocaleString('es-AR')+'</div></div>'+
+      '<div class="m"><div class="m-label">Gastos</div><div class="m-val red">$'+totalG.toLocaleString('es-AR')+'</div></div>'+
+      '<div class="m"><div class="m-label">Balance</div><div class="m-val '+(totalI-totalG>=0?'green':'red')+'">$'+(totalI-totalG).toLocaleString('es-AR')+'</div></div>'+
+      '</div>'+cuerpo+mkFooter;
+  }
 
   const win = window.open('','_blank');
   if(!win){ toast('❌ Bloqueaste las ventanas emergentes — permitilas para descargar PDF','error'); return; }
