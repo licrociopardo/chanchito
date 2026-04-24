@@ -421,6 +421,7 @@ textarea{resize:vertical;min-height:68px}
     <span class="login-pig">🐷</span>
     <div class="login-title">Chanchito</div>
     <div class="login-name">Tu portal personal de finanzas 🐷</div>
+    <div style="font-size:10px;color:var(--text3);margin-bottom:16px">v24-ABR · usuario: rocio · clave: 12345</div>
     <div class="login-group">
       <label class="login-label">Usuario</label>
       <input class="login-input" id="lu" placeholder="tu usuario" autocomplete="off">
@@ -3512,21 +3513,19 @@ function cambiarContrasena(){
 // Solo aplica si el usuario cambió la contraseña desde Mi Perfil
 (function loadSavedCredentials(){
   try{
-    // Solo restaurar si hay una contraseña explícitamente cambiada por el usuario
-    // (marcada con el flag 'chanchito_pass_changed')
+    // Solo restaurar contraseña si el usuario la cambió explícitamente desde Mi Perfil
     const changed = localStorage.getItem('chanchito_pass_changed');
     if(changed === '1'){
-      Object.keys(USERS_DB).forEach(u=>{
-        const saved = localStorage.getItem('chanchito_pass_'+u);
-        if(saved) USERS_DB[u] = saved;
-      });
+      const saved = localStorage.getItem('chanchito_pass_rocio');
+      if(saved) USERS_DB['rocio'] = saved;
+      // Si renombró el usuario, agregar también con el nuevo nombre
+      const savedUser = localStorage.getItem('chanchito_user');
+      if(savedUser && savedUser !== 'rocio'){
+        const savedPass = localStorage.getItem('chanchito_pass_'+savedUser) || USERS_DB['rocio'];
+        if(savedPass) USERS_DB[savedUser] = savedPass;
+      }
     }
-    // Restaurar usuario renombrado si existe
-    const savedUser = localStorage.getItem('chanchito_user');
-    if(savedUser && !USERS_DB[savedUser] && USERS_DB['rocio']){
-      USERS_DB[savedUser] = USERS_DB['rocio'];
-      delete USERS_DB['rocio'];
-    }
+    // NUNCA borrar 'rocio' del USERS_DB — siempre debe poder entrar
   }catch(e){}
 })();
 
