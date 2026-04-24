@@ -1261,7 +1261,7 @@ const SCRIPT_URL = 'TU_APPS_SCRIPT_URL_AQUI';
 // Cache en memoria (NO localStorage) — se limpia al recargar, garantiza que
 // siempre se pide data fresca a Sheets al iniciar sesión
 let GASTOS_CACHE = [], GASTOS_ALL = [];
-let INGRESOS_CACHE = [];
+let INGRESOS_CACHE = [], INGRESOS_ALL = [];
 let lastSyncTime = null;
 
 // Helper: llamar al Apps Script
@@ -1421,7 +1421,7 @@ async function loadFromSheets(silent=false){
   try {
     // Cargar todo en paralelo
     // Llamadas individuales en paralelo
-    const [respG, respI, respCat, respMed, respPresup, respPF, respCal, respU, respDeu] = await Promise.all([
+    const [respG, respI, respCat, respMed, respPresup, respPF, respCal, respU, respDeu, respIAll] = await Promise.all([
       sheetsAPI('getGastos'),
       sheetsAPI('getIngresos'),
       sheetsAPI('getCategorias'),
@@ -1431,6 +1431,7 @@ async function loadFromSheets(silent=false){
       sheetsAPI('getCalendario'),
       sheetsAPI('getUsuarios'),
       sheetsAPI('getDeudas'),
+      sheetsAPI('getIngresos', {}, false), // todos los ingresos sin filtro de mes
     ]);
 
     // Gastos
@@ -1484,8 +1485,11 @@ async function loadFromSheets(silent=false){
       });
     }
 
-    // Ingresos
+    // Ingresos del mes seleccionado
     if(respI.ok){ INGRESOS_CACHE = respI.data; }
+    // Todos los ingresos (sin filtro de mes, para el gráfico histórico)
+    if(respIAll&&respIAll.ok){ INGRESOS_ALL = respIAll.data; }
+    else { INGRESOS_ALL = INGRESOS_CACHE; } // fallback
 
     // Categorías
     if(respCat.ok && respCat.data.length){
@@ -1829,8 +1833,10 @@ function updateDashboardMetrics(){
     });
 
     // Ingreso promedio mensual para proyectar meses futuros
+    // Usar INGRESOS_ALL para tener historial completo
+    const ingSrc = (INGRESOS_ALL && INGRESOS_ALL.length) ? INGRESOS_ALL : INGRESOS_CACHE;
     const ingPorMes={};
-    INGRESOS_CACHE.forEach(i=>{
+    ingSrc.forEach(i=>{
       const p=String(i.fecha||'').split('/');
       if(p.length<3) return;
       const k=p[2]+'-'+p[1].padStart(2,'0');
@@ -1856,9 +1862,10 @@ function updateDashboardMetrics(){
         allG.filter(g=>{const p=String(g.fecha||'').split('/');return p.length>=3&&p[2]+'-'+p[1].padStart(2,'0')===kG;}).reduce((s,g)=>s+Math.abs(g.monto||0),0);
       gastData.push(gMes);
 
-      // Ingresos: real en pasado, promedio en futuro
-      const iMes = isFuture ? ingPromedio :
-        INGRESOS_CACHE.filter(g=>{const p=String(g.fecha||'').split('/');return p.length>=3&&p[2]+'-'+p[1].padStart(2,'0')===kG;}).reduce((s,g)=>s+parseFloat(g.monto||0),0);
+      // Ingresos: real si existe en el historial, promedio si es futuro
+      const iMes = isFuture
+        ? (ingPorMes[kG] || ingPromedio)  // futuro: usar real si ya cargó, sino promedio
+        : (ingPorMes[kG] || 0);           // pasado/actual: siempre del historial real
       ingData.push(iMes);
 
       // Cuotas futuras comprometidas
