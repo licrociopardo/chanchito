@@ -1353,35 +1353,39 @@ async function loadFromSheets(silent=false){
     if(respG.ok){
       // GASTOS_ALL guarda todos sin filtro de mes (para cuotas, proyecciones, etc.)
       GASTOS_ALL = respG.data.map(r=>{
-        // cuota_actual puede venir como número, como fecha "2026-06-03" o como string "3"
-        // Extraer el número real de cuota
-        let ca = r.cuota_actual||r['cuota_actual']||'';
-        let ct = r.total_cuotas||r['total_cuotas']||'';
+        // 1. Intentar leer cuota_actual/total_cuotas de las columnas
+        let ca = r.cuota_actual||'';
+        let ct = r.total_cuotas||'';
+        // Apps Script devuelve fechas cuando la celda tiene formato fecha:
+        // "2026-06-03" → extraer el día como número de cuota
         if(ca && String(ca).match(/\d{4}-\d{2}-\d{2}/)){
-          // Es una fecha — extraer el día como número de cuota
           ca = parseInt(String(ca).split('-')[2]) || '';
         }
-        ca = ca ? parseInt(ca) : '';
-        ct = ct ? parseInt(ct) : '';
-        // monto: si monto es 0 pero cuota_actual tiene valor numérico grande, 
-        // es un bug de importación donde monto y cuota_actual se intercambiaron
+        ca = ca ? parseInt(ca) : 0;
+        ct = ct ? parseInt(ct) : 0;
+
+        // 2. Si no hay cuota en columnas, parsear desde descripción
+        // Formato: "ALGO (cuota 4/12)" o "ALGO (cuota 4/12)"
         let monto = parseFloat(r.monto||0);
-        if(monto === 0 && ca > 1000){
-          // cuota_actual contiene el monto real, monto está en 0
-          monto = ca;
-          ca = '';
-          ct = '';
+        const desc = r.descripcion||'';
+        if((!ca || !ct) && desc){
+          const m = desc.match(/cuota\s+(\d+)\s*\/\s*(\d+)/i);
+          if(m){
+            ca = parseInt(m[1]);
+            ct = parseInt(m[2]);
+          }
         }
+
         return {
           id:     r.id||'',
           fecha:  r.fecha,
-          desc:   r.descripcion,
+          desc:   desc,
           cat:    r.categoria,
           medio:  r.medio_pago,
           asig:   r.asignado_a,
           cuotas: ca&&ct?`${ca}/${ct}`:'—',
-          cuota_actual: ca,
-          total_cuotas: ct,
+          cuota_actual: ca||0,
+          total_cuotas: ct||0,
           monto:  Math.abs(monto),
           notas:  r.notas||'',
           raw:    r
@@ -1465,7 +1469,8 @@ async function loadFromSheets(silent=false){
       const deudasSheets = respDeu.data.map(r=>({
         id:       r.id||'d'+Math.random(),
         tipo:     r.tipo||'me_deben',
-        persona:  r.persona||'',
+        // 'persona' puede venir como 'tipo.1' si el header de Sheets está mal
+        persona:  r.persona||r['tipo.1']||r.tipo1||'',
         monto:    parseFloat(r.monto||0),
         fecha:    r.fecha||'',
         desc:     r.descripcion||r.desc||'',
