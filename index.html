@@ -421,7 +421,6 @@ textarea{resize:vertical;min-height:68px}
     <span class="login-pig">🐷</span>
     <div class="login-title">Chanchito</div>
     <div class="login-name">Tu portal personal de finanzas 🐷</div>
-    <div style="font-size:10px;color:var(--text3);margin-bottom:16px">v24-ABR · usuario: rocio · clave: 12345</div>
     <div class="login-group">
       <label class="login-label">Usuario</label>
       <input class="login-input" id="lu" placeholder="tu usuario" autocomplete="off">
@@ -2617,7 +2616,18 @@ function dl(tipo, mesVal){
   }
 
   const win = window.open('','_blank');
-  if(!win){ toast('❌ Bloqueaste las ventanas emergentes — permitilas para descargar PDF','error'); return; }
+  if(!win){
+    // Popup bloqueado — descargar como archivo HTML
+    const blob = new Blob([finalHTML], {type:'text/html'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'Chanchito-Reporte-' + (mesLabel||tipo).replace(/\s+/g,'-') + '.html';
+    a.click();
+    URL.revokeObjectURL(url);
+    toast('✓ Reporte descargado — abrilo en el navegador y usá Ctrl+P para PDF','success');
+    return;
+  }
   win.document.write(finalHTML);
   win.document.close();
   win.focus();
