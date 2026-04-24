@@ -1336,18 +1336,18 @@ async function loadFromSheets(silent=false){
 
   try {
     // Cargar todo en paralelo
-    // Una sola llamada que trae todo junto — mucho más rápido
-    const respAll = await sheetsAPI('getAll');
-    if (!respAll.ok) throw new Error(respAll.error || 'Error en getAll');
-    const respG      = { ok: true, data: respAll.gastos      || [] };
-    const respI      = { ok: true, data: respAll.ingresos    || [] };
-    const respCat    = { ok: true, data: respAll.categorias  || [] };
-    const respMed    = { ok: true, data: respAll.medios      || [] };
-    const respPresup = { ok: true, data: respAll.presupuesto || [] };
-    const respPF     = { ok: true, data: respAll.pagos_fijos || [] };
-    const respCal    = { ok: true, data: respAll.calendario  || [] };
-    const respU      = { ok: true, data: respAll.usuarios    || [] };
-    const respDeu    = { ok: true, data: respAll.deudas      || [] };
+    // Llamadas individuales en paralelo
+    const [respG, respI, respCat, respMed, respPresup, respPF, respCal, respU, respDeu] = await Promise.all([
+      sheetsAPI('getGastos'),
+      sheetsAPI('getIngresos'),
+      sheetsAPI('getCategorias'),
+      sheetsAPI('getMedios'),
+      sheetsAPI('getPresupuesto'),
+      sheetsAPI('getPagosFijos'),
+      sheetsAPI('getCalendario'),
+      sheetsAPI('getUsuarios'),
+      sheetsAPI('getDeudas'),
+    ]);
 
     // Gastos
     if(respG.ok){
