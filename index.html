@@ -1196,7 +1196,7 @@ const SCRIPT_URL = 'TU_APPS_SCRIPT_URL_AQUI';
 
 // Cache en memoria (NO localStorage) — se limpia al recargar, garantiza que
 // siempre se pide data fresca a Sheets al iniciar sesión
-let GASTOS_CACHE = [];
+let GASTOS_CACHE = [], GASTOS_ALL = [];
 let INGRESOS_CACHE = [];
 let lastSyncTime = null;
 
@@ -1351,7 +1351,8 @@ async function loadFromSheets(silent=false){
 
     // Gastos
     if(respG.ok){
-      GASTOS_CACHE = respG.data.map(r=>{
+      // GASTOS_ALL guarda todos sin filtro de mes (para cuotas, proyecciones, etc.)
+      GASTOS_ALL = respG.data.map(r=>{
         // cuota_actual puede venir como número, como fecha "2026-06-03" o como string "3"
         // Extraer el número real de cuota
         let ca = r.cuota_actual||r['cuota_actual']||'';
@@ -1385,6 +1386,13 @@ async function loadFromSheets(silent=false){
           notas:  r.notas||'',
           raw:    r
         };
+      });
+      // GASTOS_CACHE = solo el mes/año seleccionado (para la vista actual)
+      const {mes:mesLoad, anio:anioLoad} = getMesAnioSel();
+      GASTOS_CACHE = GASTOS_ALL.filter(g=>{
+        const p=String(g.fecha||'').split('/');
+        if(p.length<3) return true;
+        return parseInt(p[1])===mesLoad && parseInt(p[2])===anioLoad;
       });
     }
 
@@ -1503,6 +1511,15 @@ function getMesAnioSel(){
 }
 
 function onMesSelChange(){
+  // Actualizar GASTOS_CACHE con el nuevo mes desde GASTOS_ALL
+  if(GASTOS_ALL && GASTOS_ALL.length){
+    const {mes, anio} = getMesAnioSel();
+    GASTOS_CACHE = GASTOS_ALL.filter(g=>{
+      const p=String(g.fecha||'').split('/');
+      if(p.length<3) return true;
+      return parseInt(p[1])===mes && parseInt(p[2])===anio;
+    });
+  }
   updateDashboardMetrics();
   renderGastos();
   renderProj();
@@ -1563,8 +1580,9 @@ function updateDashboardMetrics(){
   // ── Balance
   const balance = totalIngresos - totalGastos;
 
-  // ── Cuotas activas: gastos con cuota_actual que no son la última
-  const cuotasActivas = GASTOS_CACHE.filter(g=>{
+  // ── Cuotas activas: usar GASTOS_ALL (todo el historial) no solo el mes actual
+  const allGastosForCuotas = (GASTOS_ALL && GASTOS_ALL.length) ? GASTOS_ALL : GASTOS_CACHE;
+  const cuotasActivas = allGastosForCuotas.filter(g=>{
     const ca=parseInt(g.cuota_actual||g.cuotaActual||0);
     const ct=parseInt(g.total_cuotas||g.totalCuotas||0);
     return ca>0 && ct>0 && ca<ct;
@@ -1577,7 +1595,7 @@ function updateDashboardMetrics(){
   // Cuotas: monto mensual comprometido (cuota del mes siguiente, una por grupo)
   // Buscar cuotas distintas — una línea por grupo de cuotas pendientes
   const cuotasGrupos = {};
-  GASTOS_CACHE.forEach(g=>{
+  allGastosForCuotas.forEach(g=>{
     const ca=parseInt(g.raw?.cuota_actual||g.cuota_actual||0);
     const ct=parseInt(g.raw?.total_cuotas||g.total_cuotas||0);
     if(!ca||!ct) return;
@@ -2397,12 +2415,36 @@ async function syncSheets(btn, from){
 
 // ══════ REPORTES ══════
 function dl(tipo, mesVal){
-  // Construir contenido HTML del reporte
-  const mesEl = document.getElementById('mes-sel');
-  const mesLabel = mesEl ? mesEl.options[mesEl.selectedIndex].text : 'Mes actual';
-  const mesActual=new Date().getMonth()+1, anioActual=new Date().getFullYear();
-  const gastosDelMes=GASTOS_CACHE.filter(g=>{const p=String(g.fecha||'').split('/');return parseInt(p[1])===mesActual&&parseInt(p[2])===anioActual;});
-  const ingresosDelMes=INGRESOS_CACHE.filter(i=>{const p=String(i.fecha||'').split('/');return parseInt(p[1])===mesActual&&parseInt(p[2])===anioActual;});
+  // Usar el mes del selector del reporte (si existe) o el selector global
+  let mes, anio, mesLabel;
+  if(tipo==='mensual'){
+    const repSel = document.getElementById('rep-mes-sel');
+    if(repSel && repSel.value){
+      const parts = repSel.value.split('-');
+      anio = parseInt(parts[0]); mes = parseInt(parts[1]);
+      mesLabel = repSel.options[repSel.selectedIndex]?.text || repSel.value;
+    }
+  } else if(tipo==='anual'){
+    const repAnioSel = document.getElementById('rep-anio-sel');
+    anio = repAnioSel ? parseInt(repAnioSel.value) : new Date().getFullYear();
+    mes = null;
+    mesLabel = 'Año ' + anio;
+  }
+  // Fallback: usar selector global
+  if(!mes && tipo!=='anual'){
+    const sel = getMesAnioSel();
+    mes = sel.mes; anio = sel.anio;
+    const mesEl = document.getElementById('mes-sel');
+    mesLabel = mesEl ? mesEl.options[mesEl.selectedIndex]?.text : (MESES[mes-1]+' '+anio);
+  }
+  if(!anio) anio = new Date().getFullYear();
+  // Filtrar gastos e ingresos del período
+  const gastosDelMes = tipo==='anual'
+    ? GASTOS_CACHE.filter(g=>{const p=String(g.fecha||'').split('/');return parseInt(p[2])===anio;})
+    : GASTOS_CACHE.filter(g=>{const p=String(g.fecha||'').split('/');return parseInt(p[1])===mes&&parseInt(p[2])===anio;});
+  const ingresosDelMes = tipo==='anual'
+    ? INGRESOS_CACHE.filter(i=>{const p=String(i.fecha||'').split('/');return parseInt(p[2])===anio;})
+    : INGRESOS_CACHE.filter(i=>{const p=String(i.fecha||'').split('/');return parseInt(p[1])===mes&&parseInt(p[2])===anio;});
   const totalG=gastosDelMes.reduce((s,g)=>s+g.monto,0);
   const totalI=ingresosDelMes.reduce((s,i)=>s+parseFloat(i.monto||0),0);
 
