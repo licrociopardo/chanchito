@@ -1314,7 +1314,7 @@ document.getElementById('lp').addEventListener('keydown',e=>{if(e.key==='Enter')
 document.getElementById('lu').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin()});
 
 function resetCredentials(){
-  if(!confirm('Esto va a restaurar el usuario a "rocio" y la contraseña a "12345". ¿Continuás?')) return;
+  if(!confirm('Esto va a restaurar el usuario a rocio y la contrasena a 12345. Continuas?')) return;
   // Limpiar todo lo guardado en localStorage relacionado a credenciales
   localStorage.removeItem('chanchito_pass_rocio');
   localStorage.removeItem('chanchito_pass_changed');
@@ -1325,7 +1325,7 @@ function resetCredentials(){
   document.getElementById('lu').value = 'rocio';
   document.getElementById('lp').value = '';
   document.getElementById('lerr').style.display = 'none';
-  alert('✅ Listo. Entrá con usuario "rocio" y contraseña "12345".');
+  alert('Listo! Entra con usuario rocio y contrasena 12345.');
 }
 
 async function doLogin(){
@@ -2539,23 +2539,9 @@ function dl(tipo, mesVal){
   const totalI=ingresosDelMes.reduce((s,i)=>s+parseFloat(i.monto||0),0);
 
   // Estilos base compartidos
-  const estilosBase = `
-    body{font-family:sans-serif;padding:32px;color:#1a1714;font-size:13px}
-    h1{font-size:20px;margin-bottom:4px}
-    .sub{color:#888;margin-bottom:24px;font-size:12px}
-    .metrics{display:flex;gap:16px;margin-bottom:24px}
-    .m{border:1px solid #e2ddd6;border-radius:8px;padding:12px 16px;flex:1}
-    .m-label{font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
-    .m-val{font-size:20px;font-weight:700;font-family:monospace}
-    .green{color:#1a9e5c}.red{color:#d63a3a}.blue{color:#1a6fb5}
-    table{width:100%;border-collapse:collapse;margin-bottom:24px}
-    th{text-align:left;padding:8px 10px;font-size:10px;text-transform:uppercase;color:#888;border-bottom:2px solid #e2ddd6}
-    td{padding:8px 10px;border-bottom:1px solid #e2ddd6;font-size:12px}
-    h2{font-size:14px;margin:20px 0 10px}
-    .footer{margin-top:32px;font-size:10px;color:#aaa;border-top:1px solid #e2ddd6;padding-top:12px}
-  \`;
-  const mkHeader = (titulo, sub) => \`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>\${titulo}</title><style>\${estilosBase}</style></head><body><h1>\${titulo}</h1><div class="sub">\${sub}</div>\`;
-  const mkFooter = '<div class="footer">Chanchito 🐷 · Exportado desde el portal de finanzas</div></body></html>';
+  var estilosBase = 'body{font-family:sans-serif;padding:32px;color:#1a1714;font-size:13px}h1{font-size:20px;margin-bottom:4px}.sub{color:#888;margin-bottom:24px;font-size:12px}.metrics{display:flex;gap:16px;margin-bottom:24px}.m{border:1px solid #e2ddd6;border-radius:8px;padding:12px 16px;flex:1}.m-label{font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}.m-val{font-size:20px;font-weight:700;font-family:monospace}.green{color:#1a9e5c}.red{color:#d63a3a}.blue{color:#1a6fb5}table{width:100%;border-collapse:collapse;margin-bottom:24px}th{text-align:left;padding:8px 10px;font-size:10px;text-transform:uppercase;color:#888;border-bottom:2px solid #e2ddd6}td{padding:8px 10px;border-bottom:1px solid #e2ddd6;font-size:12px}h2{font-size:14px;margin:20px 0 10px}.footer{margin-top:32px;font-size:10px;color:#aaa;border-top:1px solid #e2ddd6;padding-top:12px}';
+  var mkHeader = function(titulo, sub){ return '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+titulo+'</title><style>'+estilosBase+'</style></head><body><h1>'+titulo+'</h1><div class="sub">'+sub+'</div>'; };
+  var mkFooter = '<div class="footer">Chanchito exportado desde el portal de finanzas</div></body></html>';
   const fechaHoy = new Date().toLocaleDateString('es-AR');
   let finalHTML = '';
 
