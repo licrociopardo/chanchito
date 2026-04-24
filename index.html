@@ -1562,6 +1562,55 @@ async function loadFromSheets(silent=false){
 
     // Actualizar toda la UI
     fillMesSel();
+
+    // ── Detectar gastos compartidos desde Sheets que no tienen deuda creada aún ──
+    const idsDeudas = new Set(DEUDAS.map(d=>d.desc+'|'+d.monto));
+    const gastosCompartidos = GASTOS_ALL.filter(g=>{
+      const a = String(g.asig||g.asignado_a||'').trim();
+      return a && a.toLowerCase() !== 'rocio' && a.toLowerCase() !== 'rocío' && a.toLowerCase().includes('compartido');
+    });
+    gastosCompartidos.forEach(g=>{
+      const asigVal = String(g.asig||g.asignado_a||'').trim();
+      let persona = '', montoDeuda = 0;
+      const matchComp50  = asigVal.match(/Compartido con (.+?)\s*\(50\/50\)/i);
+      const matchCompPct = asigVal.match(/Compartido con (.+?)\s*\(R:(\d+(?:\.\d+)?)%\s*A:(\d+(?:\.\d+)?)%\)/i);
+      const monto = Math.abs(parseFloat(g.monto)||0);
+      if(matchComp50){
+        persona = matchComp50[1].trim();
+        montoDeuda = Math.round(monto / 2);
+      } else if(matchCompPct){
+        persona = matchCompPct[1].trim();
+        montoDeuda = Math.round(monto * parseFloat(matchCompPct[3]) / 100);
+      } else if(asigVal.toLowerCase().includes('compartido')){
+        // Genérico 50/50
+        const m = asigVal.match(/con\s+(.+?)(?:\s*\(|$)/i);
+        persona = m ? m[1].trim() : 'Compartido';
+        montoDeuda = Math.round(monto / 2);
+      }
+      if(persona && montoDeuda > 0){
+        const key = g.desc+'|'+montoDeuda;
+        // Solo crear si no existe ya una deuda con esa descripción y monto
+        if(!idsDeudas.has(key)){
+          const nuevaDeuda = {
+            id: 'da_'+String(g.id||Date.now())+'_'+Math.random().toString(36).substr(2,4),
+            tipo: 'me_deben',
+            persona: persona,
+            monto: montoDeuda,
+            fecha: g.fecha||'',
+            desc: g.desc||'',
+            notas: 'Detectado automáticamente al sincronizar',
+            saldada: false
+          };
+          DEUDAS.push(nuevaDeuda);
+          idsDeudas.add(key);
+        }
+      }
+    });
+    if(gastosCompartidos.length > 0){
+      try{ localStorage.setItem('chanchito_deudas', JSON.stringify(DEUDAS)); }catch(e){}
+    }
+    // ── fin detección gastos compartidos ──
+
     renderGastos();
     renderConfig();
     renderPresupuesto();
