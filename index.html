@@ -515,33 +515,22 @@ textarea{resize:vertical;min-height:68px}
       <div class="metric-card"><div class="metric-label">Balance neto</div><div class="metric-value green" id="m-balance">—</div><div class="metric-delta delta-neutral" id="m-balance-delta">Disponible</div></div>
       <div class="metric-card"><div class="metric-label">Cuotas activas</div><div class="metric-value orange" id="m-cuotas">—</div><div class="metric-delta delta-neutral">Próx. 3 meses</div></div>
     </div>
-    <div class="row2">
-      <div class="card">
-        <div class="card-hd">
-          <div><div class="card-title">Ingresos vs. Gastos</div><div class="card-sub" id="ivg-sub">Últimos 6 meses · Próximos 6 meses</div></div>
-          <div style="display:flex;gap:10px;font-size:10px;color:var(--text3);flex-shrink:0">
-            <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:2px;background:#1a6fb5;display:inline-block"></span>Ing.</span>
-            <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:2px;background:#d63a3a;display:inline-block"></span>Gast.</span>
-            <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:2px;background:#e8a838;display:inline-block"></span>Cuotas fut.</span>
-          </div>
-        </div>
-        <div style="position:relative;height:190px"><canvas id="ch-ivg" role="img" aria-label="Ingresos vs gastos últimos 6 meses">Ingresos y gastos</canvas></div>
-      </div>
-      <div class="card">
-        <div class="card-hd"><div class="card-title">Por categoría</div></div>
-        <div class="cat-list" id="cat-list"></div>
-      </div>
-    </div>
-    <div class="card">
+    <div class="card" style="margin-bottom:14px">
       <div class="card-hd">
-        <div class="card-title">Últimos movimientos</div>
-        <button class="btn btn-ghost btn-sm" onclick="nav('gastos',document.querySelectorAll('.nav-item')[1])">Ver todos →</button>
+        <div><div class="card-title">Ingresos vs. Gastos</div><div class="card-sub" id="ivg-sub">Últimos 6 meses · Próximos 6 meses</div></div>
+        <div style="display:flex;gap:10px;font-size:10px;color:var(--text3);flex-shrink:0">
+          <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:2px;background:#1a6fb5;display:inline-block"></span>Ing.</span>
+          <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:2px;background:#d63a3a;display:inline-block"></span>Gast.</span>
+          <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:2px;background:#e8a838;display:inline-block"></span>Cuotas fut.</span>
+        </div>
       </div>
-      <div class="tbl-wrap"><table id="tbl-recientes">
-        <thead><tr><th>Fecha</th><th>Descripción</th><th>Categoría</th><th>Medio de pago</th><th>Cuotas</th><th style="text-align:right">Monto</th></tr></thead>
-        <tbody id="tbody-recientes"></tbody>
-      </table></div>
+      <div style="position:relative;height:260px"><canvas id="ch-ivg" role="img" aria-label="Ingresos vs gastos">Ingresos y gastos</canvas></div>
     </div>
+    <div class="card" style="margin-bottom:14px">
+      <div class="card-hd"><div class="card-title">Por categoría</div><div class="card-sub">Gastos del mes seleccionado</div></div>
+      <div class="cat-list" id="cat-list" style="columns:2;column-gap:24px"></div>
+    </div>
+
 
     <!-- Compromisos futuros por cuotas -->
     <div class="card" style="margin-top:14px">
@@ -1971,7 +1960,6 @@ function badgeFor(asig){
 }
 function renderGastos(filter='todos', catFilter=''){
   const tbody=document.getElementById('tbody-gastos');
-  const tbodyR=document.getElementById('tbody-recientes');
   const {mes: _rMes, anio: _rAnio} = getMesAnioSel();
   // Actualizar título de la sección
   const _rSel = document.getElementById('mes-sel');
@@ -2000,15 +1988,6 @@ function renderGastos(filter='todos', catFilter=''){
     </tr>`).join('');
   const total=filtered.reduce((a,g)=>a+g.monto,0);
   document.getElementById('gastos-sub').textContent=`Total: $${Math.abs(total).toLocaleString('es-AR')} · ${filtered.length} movimientos`;
-  // Recientes (últimos 5)
-  tbodyR.innerHTML=GASTOS_CACHE.slice(0,5).map(g=>`
-    <tr>
-      <td>${g.fecha}</td><td><strong>${g.desc}</strong></td>
-      <td><span class="badge" style="background:${getCatColor(g.cat)}18;color:${getCatColor(g.cat)}">${g.cat}</span></td>
-      <td><span class="badge badge-gray">${g.medio}</span></td>
-      <td>${g.cuotas!=='—'?`<span class="badge badge-amber">${g.cuotas}</span>`:'—'}</td>
-      <td class="mono amt-neg" style="text-align:right">$${Math.abs(g.monto).toLocaleString('es-AR')}</td>
-    </tr>`).join('');
 }
 
 async function delGastoUI(id){
@@ -3697,28 +3676,76 @@ function renderCompromisosFuturos(){
   // Renderizar tabla de cuotas activas
   const tbody = document.getElementById('tbody-cuotas-futuras');
   if(!tbody) return;
-  if(!cuotasActivas.length){
-    tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:20px">Sin cuotas activas</td></tr>';
+
+  const nowT = new Date();
+  const mesProximo = new Date(nowT.getFullYear(), nowT.getMonth()+1, 1);
+
+  const grupos = {};
+  cuotasActivas.forEach(g=>{
+    const ca=parseInt(g.cuota_actual||0), ct=parseInt(g.total_cuotas||0);
+    const monto=Math.abs(parseFloat(g.monto)||0);
+    const p=String(g.fecha||'').split('/');
+    if(p.length<3) return;
+    const mesBase=new Date(parseInt(p[2]),parseInt(p[1])-1,1);
+    // La próxima cuota a pagar es ca+1, que cae en mesBase + (ca+1 - ca_original) 
+    // Pero como ca es la cuota actual registrada, la siguiente cae en 1 mes desde la fecha
+    // Calcular en qué mes cae la siguiente cuota (ca+1)
+    const offset = ca + 1 - ca; // = 1 mes desde la fecha del gasto registrado
+    // En realidad, la cuota ca cae en mesBase + ca meses desde compra cuota 1
+    // Entonces ca+1 cae en mesBase + ca + 1 meses
+    // Pero mesBase ya es el mes de la cuota registrada (ca)
+    // Entonces la siguiente cuota cae en mesBase + 1
+    const mesSiguiente = new Date(mesBase.getFullYear(), mesBase.getMonth()+1, 1);
+    
+    // Solo incluir si la siguiente cuota es futura
+    if(mesSiguiente < mesProximo) {
+      // La cuota siguiente ya pasó — calcular cuántas quedan realmente en el futuro
+      // La cuota ca cae en el mes del gasto registrado
+      // Las cuotas futuras empiezan desde el mes actual+1
+      const mesesDesdeBase = (nowT.getFullYear()-mesBase.getFullYear())*12 + (nowT.getMonth()-mesBase.getMonth());
+      const cuotaFuturaInicio = ca + mesesDesdeBase + 1; // primera cuota que cae en el futuro
+      if(cuotaFuturaInicio > ct) return; // ya terminó
+    }
+
+    const descBase = (g.desc||'').replace(/\s*\(cuota.*\)/i,'').trim() || g.id;
+    if(!grupos[descBase]){
+      grupos[descBase] = {desc:descBase, ca, ct, monto, mesBase, restantesFuturos:0, totalFuturo:0};
+    }
+    // Contar cuotas futuras para este grupo
+    const gr = grupos[descBase];
+    // Cuotas futuras = desde el mes siguiente al actual hasta la última
+    const mesActualNum = nowT.getFullYear()*12 + nowT.getMonth();
+    
+    // La cuota ca cae en el mes del gasto, ca+1 en mes+1, etc.
+    // Cuotas futuras = las que caen después del mes actual
+    for(let cuotaN=ca+1; cuotaN<=ct; cuotaN++){
+      const offset2 = cuotaN - ca;
+      const mesCuota = new Date(mesBase.getFullYear(), mesBase.getMonth()+offset2, 1);
+      const mesCuotaNum = mesCuota.getFullYear()*12 + mesCuota.getMonth();
+      if(mesCuotaNum > mesActualNum){
+        gr.restantesFuturos++;
+        gr.totalFuturo += monto;
+      }
+    }
+    // Actualizar cuota más reciente del grupo
+    if(ca > gr.ca){ gr.ca = ca; gr.ct = ct; }
+  });
+
+  const gruposArr = Object.values(grupos).filter(g=>g.restantesFuturos>0)
+    .sort((a,b)=>b.totalFuturo-a.totalFuturo);
+
+  if(!gruposArr.length){
+    tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:20px">Sin cuotas con pagos futuros</td></tr>';
     return;
   }
-  // Ordenar por monto * restantes desc (mayor compromiso total primero)
-  const sorted = [...cuotasActivas].sort((a,b)=>{
-    const rA=(parseInt(a.total_cuotas)-parseInt(a.cuota_actual))*Math.abs(a.monto||0);
-    const rB=(parseInt(b.total_cuotas)-parseInt(b.cuota_actual))*Math.abs(b.monto||0);
-    return rB-rA;
-  });
-  tbody.innerHTML = sorted.map(g=>{
-    const ca=parseInt(g.cuota_actual||0), ct=parseInt(g.total_cuotas||0);
-    const restantes=ct-ca;
-    const monto=Math.abs(parseFloat(g.monto)||0);
-    const totalPend=monto*restantes;
-    const desc=(g.desc||'').replace(/\s*\(cuota.*\)/i,'').trim();
+
+  tbody.innerHTML = gruposArr.map(g=>{
     return `<tr>
-      <td>${desc}</td>
-      <td><span class="badge badge-orange">${ca}/${ct}</span></td>
-      <td class="mono" style="text-align:right">$${monto.toLocaleString('es-AR')}</td>
-      <td style="text-align:right">${restantes} mes${restantes!==1?'es':''}</td>
-      <td class="mono" style="text-align:right;font-weight:700;color:var(--red)">$${totalPend.toLocaleString('es-AR')}</td>
+      <td>${g.desc}</td>
+      <td><span class="badge badge-orange">${g.ca}/${g.ct}</span></td>
+      <td class="mono" style="text-align:right">$${g.monto.toLocaleString('es-AR')}</td>
+      <td style="text-align:right">${g.restantesFuturos} mes${g.restantesFuturos!==1?'es':''}</td>
+      <td class="mono" style="text-align:right;font-weight:700;color:var(--red)">$${g.totalFuturo.toLocaleString('es-AR')}</td>
     </tr>`;
   }).join('');
 }
