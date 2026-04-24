@@ -518,10 +518,11 @@ textarea{resize:vertical;min-height:68px}
     <div class="row2">
       <div class="card">
         <div class="card-hd">
-          <div><div class="card-title">Ingresos vs. Gastos</div><div class="card-sub">Últimos 6 meses</div></div>
+          <div><div class="card-title">Ingresos vs. Gastos</div><div class="card-sub" id="ivg-sub">Últimos 6 meses · Próximos 6 meses</div></div>
           <div style="display:flex;gap:10px;font-size:10px;color:var(--text3);flex-shrink:0">
             <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:2px;background:#1a6fb5;display:inline-block"></span>Ing.</span>
             <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:2px;background:#d63a3a;display:inline-block"></span>Gast.</span>
+            <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:2px;background:#e8a838;display:inline-block"></span>Cuotas fut.</span>
           </div>
         </div>
         <div style="position:relative;height:190px"><canvas id="ch-ivg" role="img" aria-label="Ingresos vs gastos últimos 6 meses">Ingresos y gastos</canvas></div>
@@ -540,6 +541,24 @@ textarea{resize:vertical;min-height:68px}
         <thead><tr><th>Fecha</th><th>Descripción</th><th>Categoría</th><th>Medio de pago</th><th>Cuotas</th><th style="text-align:right">Monto</th></tr></thead>
         <tbody id="tbody-recientes"></tbody>
       </table></div>
+    </div>
+
+    <!-- Compromisos futuros por cuotas -->
+    <div class="card" style="margin-top:14px">
+      <div class="card-hd">
+        <div>
+          <div class="card-title">📅 Compromisos futuros — cuotas</div>
+          <div class="card-sub">Gastos ya comprometidos mes a mes por cuotas activas</div>
+        </div>
+      </div>
+      <div id="futuros-grid" style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-top:4px"></div>
+      <div style="margin-top:16px">
+        <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Detalle por cuota activa</div>
+        <div class="tbl-wrap"><table id="tbl-cuotas-futuras" style="font-size:12px">
+          <thead><tr><th>Descripción</th><th>Cuota</th><th style="text-align:right">Monto/mes</th><th style="text-align:right">Meses restantes</th><th style="text-align:right">Total pendiente</th></tr></thead>
+          <tbody id="tbody-cuotas-futuras"></tbody>
+        </table></div>
+      </div>
     </div>
   </div>
 
@@ -1781,6 +1800,7 @@ function updateDashboardMetrics(){
 
   // Refrescar chart presupuesto con datos reales
   refreshPresupChart();
+  renderCompromisosFuturos();
   // Presupuesto metrics
   const limiteTotal = PRESUP_BASE.reduce((s,p)=>s+p.limite,0);
   const pctPresup   = limiteTotal>0?Math.round(totalGastos/limiteTotal*100):0;
@@ -1793,28 +1813,73 @@ function updateDashboardMetrics(){
   set('presup-pct-lbl',   pctPresup+'% del límite');
   set('presup-disp-pct',  Math.max(0,100-pctPresup)+'% restante');
 
-  // Actualizar chart ivg con los últimos 6 meses reales
+  // Actualizar chart ivg: 6 meses pasados + 6 meses futuros
   if(charts.ivg){
     const now = new Date();
-    const labels6 = [];
-    const ingData = [];
-    const gastData = [];
-    // Usar GASTOS_ALL para tener historial de todos los meses, no solo el seleccionado
+    const labels12 = [], ingData = [], gastData = [], cuotasFutData = [];
     const allG = (GASTOS_ALL && GASTOS_ALL.length) ? GASTOS_ALL : GASTOS_CACHE;
-    for(let i=5;i>=0;i--){
-      const d = new Date(now.getFullYear(),now.getMonth()-i,1);
-      const mm = String(d.getMonth()+1).padStart(2,'0');
-      const yy = d.getFullYear();
-      labels6.push(MESES[d.getMonth()]);
-      const kG = yy+'-'+mm;
-      const gMes = allG.filter(g=>{const p=String(g.fecha||'').split('/');return p.length>=3&&p[2]+'-'+p[1].padStart(2,'0')===kG;}).reduce((s,g)=>s+g.monto,0);
-      const iMes = INGRESOS_CACHE.filter(g=>{const p=String(g.fecha||'').split('/');return p.length>=3&&p[2]+'-'+p[1].padStart(2,'0')===kG;}).reduce((s,g)=>s+parseFloat(g.monto||0),0);
+
+    // Calcular cuotas futuras por mes (igual que renderCompromisosFuturos)
+    const cuotasActivas = allG.filter(g=>{
+      const ca=parseInt(g.cuota_actual||0), ct=parseInt(g.total_cuotas||0);
+      return ca>0 && ct>0 && ca<ct;
+    });
+    const cuotasPorMes = {};
+    cuotasActivas.forEach(g=>{
+      const ca=parseInt(g.cuota_actual||0), ct=parseInt(g.total_cuotas||0);
+      const monto=Math.abs(parseFloat(g.monto)||0);
+      const p=String(g.fecha||'').split('/');
+      if(p.length<3) return;
+      const mesBase=new Date(parseInt(p[2]),parseInt(p[1])-1,1);
+      for(let cuotaN=ca+1;cuotaN<=ct;cuotaN++){
+        const offset=cuotaN-ca;
+        const mesCuota=new Date(mesBase.getFullYear(),mesBase.getMonth()+offset,1);
+        const key=mesCuota.getFullYear()+'-'+String(mesCuota.getMonth()+1).padStart(2,'0');
+        cuotasPorMes[key]=(cuotasPorMes[key]||0)+monto;
+      }
+    });
+
+    // Ingreso promedio mensual para proyectar meses futuros
+    const ingPorMes={};
+    INGRESOS_CACHE.forEach(i=>{
+      const p=String(i.fecha||'').split('/');
+      if(p.length<3) return;
+      const k=p[2]+'-'+p[1].padStart(2,'0');
+      ingPorMes[k]=(ingPorMes[k]||0)+parseFloat(i.monto||0);
+    });
+    const ingVals=Object.values(ingPorMes);
+    const ingPromedio=ingVals.length?Math.round(ingVals.reduce((a,b)=>a+b,0)/ingVals.length):0;
+
+    // Construir 12 meses: -5 a +6 desde hoy
+    for(let i=-5;i<=6;i++){
+      const d=new Date(now.getFullYear(),now.getMonth()+i,1);
+      const mm=String(d.getMonth()+1).padStart(2,'0');
+      const yy=d.getFullYear();
+      const kG=yy+'-'+mm;
+      const isFuture=i>0;
+      const isNow=i===0;
+
+      // Label: mes abreviado, marcar el actual y futuros
+      labels12.push(MESES[d.getMonth()]+(isNow?' ◆':isFuture?' →':''));
+
+      // Gastos reales (solo pasado y mes actual)
+      const gMes = isFuture ? 0 :
+        allG.filter(g=>{const p=String(g.fecha||'').split('/');return p.length>=3&&p[2]+'-'+p[1].padStart(2,'0')===kG;}).reduce((s,g)=>s+Math.abs(g.monto||0),0);
       gastData.push(gMes);
+
+      // Ingresos: real en pasado, promedio en futuro
+      const iMes = isFuture ? ingPromedio :
+        INGRESOS_CACHE.filter(g=>{const p=String(g.fecha||'').split('/');return p.length>=3&&p[2]+'-'+p[1].padStart(2,'0')===kG;}).reduce((s,g)=>s+parseFloat(g.monto||0),0);
       ingData.push(iMes);
+
+      // Cuotas futuras comprometidas
+      cuotasFutData.push(isFuture ? (cuotasPorMes[kG]||0) : 0);
     }
-    charts.ivg.data.labels = labels6;
+
+    charts.ivg.data.labels = labels12;
     charts.ivg.data.datasets[0].data = ingData;
     charts.ivg.data.datasets[1].data = gastData;
+    charts.ivg.data.datasets[2].data = cuotasFutData;
     charts.ivg.update('none');
   }
 
@@ -2698,14 +2763,15 @@ function initCharts(){
     }
   };
 
-  // Ingresos vs Gastos
+  // Ingresos vs Gastos (12 meses: 6 pasados + 6 futuros)
   charts.ivg=new Chart(document.getElementById('ch-ivg'),{
     type:'bar',
     data:{
-      labels:['Nov','Dic','Ene','Feb','Mar','Abr'],
+      labels:['Nov','Dic','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct'],
       datasets:[
-        {label:'Ingresos',data:[0,0,0,0,0,0],backgroundColor:'rgba(26,111,181,.5)',borderRadius:5,borderSkipped:false},
-        {label:'Gastos',data:[0,0,0,0,0,0],backgroundColor:'rgba(214,58,58,.45)',borderRadius:5,borderSkipped:false}
+        {label:'Ingresos',data:[0,0,0,0,0,0,0,0,0,0,0,0],backgroundColor:'rgba(26,111,181,.5)',borderRadius:5,borderSkipped:false},
+        {label:'Gastos reales',data:[0,0,0,0,0,0,0,0,0,0,0,0],backgroundColor:'rgba(214,58,58,.45)',borderRadius:5,borderSkipped:false},
+        {label:'Cuotas futuras',data:[0,0,0,0,0,0,0,0,0,0,0,0],backgroundColor:'rgba(232,168,56,.55)',borderRadius:5,borderSkipped:false,borderDash:[]}
       ]
     },options:dflt
   });
@@ -3560,6 +3626,103 @@ function cambiarContrasena(){
 
 // Cargar contraseña guardada al iniciar si existe
 // Login directo sin localStorage
+
+// ══════ COMPROMISOS FUTUROS POR CUOTAS ══════
+function renderCompromisosFuturos(){
+  const allG = (GASTOS_ALL && GASTOS_ALL.length) ? GASTOS_ALL : GASTOS_CACHE;
+  const now = new Date();
+
+  // Cuotas activas: ca > 0, ct > 0, ca < ct
+  const cuotasActivas = allG.filter(g=>{
+    const ca = parseInt(g.cuota_actual||0);
+    const ct = parseInt(g.total_cuotas||0);
+    return ca > 0 && ct > 0 && ca < ct;
+  });
+
+  // Para cada cuota activa, calcular en qué meses futuros tiene pagos pendientes
+  // El gasto tiene fecha = cuando se hizo la compra (cuota 1)
+  // Cuota N cae en mes_compra + (N - cuota_actual) meses
+  const compromisosPorMes = {};
+  const MESES_FUTUROS = 6;
+
+  cuotasActivas.forEach(g=>{
+    const ca = parseInt(g.cuota_actual||0);
+    const ct = parseInt(g.total_cuotas||0);
+    const monto = Math.abs(parseFloat(g.monto)||0);
+    const restantes = ct - ca;
+
+    // Calcular el mes base de esta cuota (mes en que fue registrada)
+    const p = String(g.fecha||'').split('/');
+    if(p.length < 3) return;
+    const mesBase = new Date(parseInt(p[2]), parseInt(p[1])-1, 1);
+
+    // Las cuotas futuras son ca+1, ca+2, ... ct
+    // La cuota ca+1 cae en mesBase + 1 mes, ca+2 en mesBase + 2, etc.
+    for(let cuotaN = ca+1; cuotaN <= ct; cuotaN++){
+      const offset = cuotaN - ca; // meses desde la fecha del gasto registrado
+      const mesCuota = new Date(mesBase.getFullYear(), mesBase.getMonth() + offset, 1);
+      
+      // Solo incluir meses futuros (desde el mes actual en adelante)
+      if(mesCuota < new Date(now.getFullYear(), now.getMonth(), 1)) continue;
+
+      const key = mesCuota.getFullYear()+'-'+String(mesCuota.getMonth()+1).padStart(2,'0');
+      if(!compromisosPorMes[key]) compromisosPorMes[key] = 0;
+      compromisosPorMes[key] += monto;
+    }
+  });
+
+  // Renderizar las tarjetas de los próximos 6 meses
+  const grid = document.getElementById('futuros-grid');
+  if(!grid) return;
+  const maxVal = Math.max(...Object.values(compromisosPorMes), 1);
+  let gridHTML = '';
+  for(let i=0; i<MESES_FUTUROS; i++){
+    const d = new Date(now.getFullYear(), now.getMonth()+i, 1);
+    const key = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+    const val = compromisosPorMes[key]||0;
+    const pct = Math.round(val/maxVal*100);
+    const color = val > 300000 ? 'var(--red)' : val > 150000 ? 'var(--amber)' : 'var(--green)';
+    const isNow = i===0;
+    gridHTML += `<div style="background:var(--bg3);border:1px solid ${isNow?'var(--accent)':'var(--border)'};border-radius:var(--r);padding:12px 10px;text-align:center${isNow?';box-shadow:0 0 0 2px var(--accent-lt)':''}">
+      <div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">${MESES[d.getMonth()]} ${d.getFullYear()}</div>
+      <div style="font-size:16px;font-weight:700;color:${val>0?color:'var(--text3)'}">$${(val/1000).toFixed(0)}k</div>
+      <div style="margin-top:8px;height:4px;background:var(--border);border-radius:2px">
+        <div style="height:4px;border-radius:2px;background:${color};width:${pct}%"></div>
+      </div>
+      <div style="font-size:10px;color:var(--text3);margin-top:4px">${val>0?Math.round(val/maxVal*100)+'% del pico':'Sin cuotas'}</div>
+    </div>`;
+  }
+  grid.innerHTML = gridHTML;
+
+  // Renderizar tabla de cuotas activas
+  const tbody = document.getElementById('tbody-cuotas-futuras');
+  if(!tbody) return;
+  if(!cuotasActivas.length){
+    tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:20px">Sin cuotas activas</td></tr>';
+    return;
+  }
+  // Ordenar por monto * restantes desc (mayor compromiso total primero)
+  const sorted = [...cuotasActivas].sort((a,b)=>{
+    const rA=(parseInt(a.total_cuotas)-parseInt(a.cuota_actual))*Math.abs(a.monto||0);
+    const rB=(parseInt(b.total_cuotas)-parseInt(b.cuota_actual))*Math.abs(b.monto||0);
+    return rB-rA;
+  });
+  tbody.innerHTML = sorted.map(g=>{
+    const ca=parseInt(g.cuota_actual||0), ct=parseInt(g.total_cuotas||0);
+    const restantes=ct-ca;
+    const monto=Math.abs(parseFloat(g.monto)||0);
+    const totalPend=monto*restantes;
+    const desc=(g.desc||'').replace(/\s*\(cuota.*\)/i,'').trim();
+    return `<tr>
+      <td>${desc}</td>
+      <td><span class="badge badge-orange">${ca}/${ct}</span></td>
+      <td class="mono" style="text-align:right">$${monto.toLocaleString('es-AR')}</td>
+      <td style="text-align:right">${restantes} mes${restantes!==1?'es':''}</td>
+      <td class="mono" style="text-align:right;font-weight:700;color:var(--red)">$${totalPend.toLocaleString('es-AR')}</td>
+    </tr>`;
+  }).join('');
+}
+
 
 // ══════ MODAL INGRESO ══════
 function openModalIngreso(){
