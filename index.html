@@ -569,7 +569,7 @@ textarea{resize:vertical;min-height:68px}
       <div class="metric-card"><div class="metric-label">Movimientos</div><div class="metric-value orange" id="ing-count">—</div><div class="metric-delta delta-neutral">este mes</div></div>
     </div>
     <div class="card">
-      <div class="card-hd"><div class="card-title">Ingresos — Abril 2026</div><button class="btn btn-primary btn-sm">＋ Nuevo ingreso</button></div>
+      <div class="card-hd"><div class="card-title">Ingresos — Abril 2026</div><button class="btn btn-primary btn-sm" onclick="nav('nuevo',null);document.getElementById('tab-ing')?.click()">＋ Nuevo ingreso</button></div>
       <div class="tbl-wrap"><table>
         <thead><tr><th>Fecha</th><th>Descripción</th><th>Categoría</th><th>Tipo</th><th>Recurrente</th><th style="text-align:right">Monto</th><th></th></tr></thead>
         <tbody id="tbody-ingresos">
@@ -792,7 +792,7 @@ textarea{resize:vertical;min-height:68px}
         <div class="rep-nm">Reporte mensual</div>
         <div class="rep-desc">Ingresos, gastos y balance del mes con desglose por categoría.</div>
         <div class="rep-actions">
-          <select class="form-sel"><option>Abril 2026</option><option>Marzo 2026</option><option>Febrero 2026</option></select>
+          <select class="form-sel" id="rep-mes-sel"><option value="2026-04">Abril 2026</option><option value="2026-03">Marzo 2026</option><option value="2026-02">Febrero 2026</option><option value="2026-01">Enero 2026</option><option value="2025-12">Diciembre 2025</option><option value="2025-11">Noviembre 2025</option><option value="2025-10">Octubre 2025</option><option value="2025-09">Septiembre 2025</option><option value="2025-08">Agosto 2025</option><option value="2025-07">Julio 2025</option><option value="2025-06">Junio 2025</option><option value="2025-05">Mayo 2025</option><option value="2025-04">Abril 2025</option></select>
           <button class="btn btn-primary btn-sm" onclick="dl('mensual')">↓ PDF</button>
           <button class="btn btn-ghost btn-sm" onclick="dl('Reporte mensual Excel')">↓ Excel</button>
         </div>
@@ -802,7 +802,7 @@ textarea{resize:vertical;min-height:68px}
         <div class="rep-nm">Reporte anual</div>
         <div class="rep-desc">Evolución mensual, ahorro acumulado y proyección de cierre de año.</div>
         <div class="rep-actions">
-          <select class="form-sel"><option>2026</option><option>2025</option></select>
+          <select class="form-sel" id="rep-anio-sel"><option value="2026">2026</option><option value="2025">2025</option></select>
           <button class="btn btn-primary btn-sm" onclick="dl('anual')">↓ PDF</button>
           <button class="btn btn-ghost btn-sm" onclick="dl('Reporte anual Excel')">↓ Excel</button>
         </div>
@@ -1674,14 +1674,16 @@ function updateDashboardMetrics(){
     const labels6 = [];
     const ingData = [];
     const gastData = [];
+    // Usar GASTOS_ALL para tener historial de todos los meses, no solo el seleccionado
+    const allG = (GASTOS_ALL && GASTOS_ALL.length) ? GASTOS_ALL : GASTOS_CACHE;
     for(let i=5;i>=0;i--){
       const d = new Date(now.getFullYear(),now.getMonth()-i,1);
       const mm = String(d.getMonth()+1).padStart(2,'0');
       const yy = d.getFullYear();
       labels6.push(MESES[d.getMonth()]);
       const kG = yy+'-'+mm;
-      const gMes = GASTOS_CACHE.filter(g=>{const p=String(g.fecha||'').split('/');return p[2]+'-'+p[1].padStart(2,'0')===kG;}).reduce((s,g)=>s+g.monto,0);
-      const iMes = INGRESOS_CACHE.filter(g=>{const p=String(g.fecha||'').split('/');return p[2]+'-'+p[1].padStart(2,'0')===kG;}).reduce((s,g)=>s+parseFloat(g.monto||0),0);
+      const gMes = allG.filter(g=>{const p=String(g.fecha||'').split('/');return p.length>=3&&p[2]+'-'+p[1].padStart(2,'0')===kG;}).reduce((s,g)=>s+g.monto,0);
+      const iMes = INGRESOS_CACHE.filter(g=>{const p=String(g.fecha||'').split('/');return p.length>=3&&p[2]+'-'+p[1].padStart(2,'0')===kG;}).reduce((s,g)=>s+parseFloat(g.monto||0),0);
       gastData.push(gMes);
       ingData.push(iMes);
     }
@@ -2420,36 +2422,42 @@ async function syncSheets(btn, from){
 
 // ══════ REPORTES ══════
 function dl(tipo, mesVal){
-  // Usar el mes del selector del reporte (si existe) o el selector global
+  // Siempre usar GASTOS_ALL (historial completo) para reportes
+  const allG = (GASTOS_ALL && GASTOS_ALL.length) ? GASTOS_ALL : GASTOS_CACHE;
+
+  // Determinar mes/año según tipo de reporte
   let mes, anio, mesLabel;
-  if(tipo==='mensual'){
-    const repSel = document.getElementById('rep-mes-sel');
-    if(repSel && repSel.value){
-      const parts = repSel.value.split('-');
-      anio = parseInt(parts[0]); mes = parseInt(parts[1]);
-      mesLabel = repSel.options[repSel.selectedIndex]?.text || repSel.value;
-    }
-  } else if(tipo==='anual'){
+
+  if(tipo==='anual'){
     const repAnioSel = document.getElementById('rep-anio-sel');
     anio = repAnioSel ? parseInt(repAnioSel.value) : new Date().getFullYear();
     mes = null;
     mesLabel = 'Año ' + anio;
-  }
-  // Fallback: usar selector global
-  if(!mes && tipo!=='anual'){
-    const sel = getMesAnioSel();
-    mes = sel.mes; anio = sel.anio;
-    const mesEl = document.getElementById('mes-sel');
-    mesLabel = mesEl ? mesEl.options[mesEl.selectedIndex]?.text : (MESES[mes-1]+' '+anio);
+  } else if(tipo==='mensual' || tipo==='cuotas' || tipo==='categorias'){
+    const repSel = document.getElementById('rep-mes-sel');
+    if(repSel && repSel.value && repSel.value.includes('-')){
+      const parts = repSel.value.split('-');
+      anio = parseInt(parts[0]); mes = parseInt(parts[1]);
+      mesLabel = repSel.options[repSel.selectedIndex]?.text || repSel.value;
+    } else {
+      // Fallback al selector global
+      const sel = getMesAnioSel();
+      mes = sel.mes; anio = sel.anio;
+      const mesEl = document.getElementById('mes-sel');
+      mesLabel = mesEl ? mesEl.options[mesEl.selectedIndex]?.text : (MESES[(mes||1)-1]+' '+anio);
+    }
   }
   if(!anio) anio = new Date().getFullYear();
-  // Filtrar gastos e ingresos del período
+  if(!mes) mes = new Date().getMonth()+1;
+  if(!mesLabel) mesLabel = MESES[(mes||1)-1]+' '+anio;
+
+  // Filtrar gastos e ingresos del período seleccionado
   const gastosDelMes = tipo==='anual'
-    ? GASTOS_CACHE.filter(g=>{const p=String(g.fecha||'').split('/');return parseInt(p[2])===anio;})
-    : GASTOS_CACHE.filter(g=>{const p=String(g.fecha||'').split('/');return parseInt(p[1])===mes&&parseInt(p[2])===anio;});
+    ? allG.filter(g=>{const p=String(g.fecha||'').split('/');return p.length>=3&&parseInt(p[2])===anio;})
+    : allG.filter(g=>{const p=String(g.fecha||'').split('/');return p.length>=3&&parseInt(p[1])===mes&&parseInt(p[2])===anio;});
   const ingresosDelMes = tipo==='anual'
-    ? INGRESOS_CACHE.filter(i=>{const p=String(i.fecha||'').split('/');return parseInt(p[2])===anio;})
-    : INGRESOS_CACHE.filter(i=>{const p=String(i.fecha||'').split('/');return parseInt(p[1])===mes&&parseInt(p[2])===anio;});
+    ? INGRESOS_CACHE.filter(i=>{const p=String(i.fecha||'').split('/');return p.length>=3&&parseInt(p[2])===anio;})
+    : INGRESOS_CACHE.filter(i=>{const p=String(i.fecha||'').split('/');return p.length>=3&&parseInt(p[1])===mes&&parseInt(p[2])===anio;});
   const totalG=gastosDelMes.reduce((s,g)=>s+g.monto,0);
   const totalI=ingresosDelMes.reduce((s,i)=>s+parseFloat(i.monto||0),0);
 
@@ -2470,7 +2478,7 @@ function dl(tipo, mesVal){
     h2{font-size:14px;margin:20px 0 10px}
     .footer{margin-top:32px;font-size:10px;color:#aaa;border-top:1px solid #e2ddd6;padding-top:12px}
   </style></head><body>
-  <h1>🐷 Chanchito — Reporte ${tipo==='anual'?'Anual '+anioActual:mesLabel}</h1>
+  <h1>🐷 Chanchito — Reporte ${tipo==='anual'?'Anual '+anio:mesLabel}</h1>
   <div class="sub">Generado el ${new Date().toLocaleDateString('es-AR')} · Portal de Rocío</div>
   <div class="metrics">
     <div class="m"><div class="m-label">Ingresos</div><div class="m-val blue">$${totalI.toLocaleString('es-AR')}</div></div>
@@ -2488,13 +2496,55 @@ function dl(tipo, mesVal){
   <div class="footer">Chanchito 🐷 · Exportado desde el portal de finanzas</div>
   </body></html>`;
 
+  // Contenido extra según tipo de reporte
+  let extraHTML = '';
+
+  if(tipo === 'anual'){
+    // Tabla mensual del año
+    const mesesAnio = [];
+    for(let m=1;m<=12;m++){
+      const gM = allG.filter(g=>{const p=String(g.fecha||'').split('/');return p.length>=3&&parseInt(p[1])===m&&parseInt(p[2])===anio;});
+      const iM = INGRESOS_CACHE.filter(i=>{const p=String(i.fecha||'').split('/');return p.length>=3&&parseInt(p[1])===m&&parseInt(p[2])===anio;});
+      const tG = gM.reduce((s,g)=>s+g.monto,0);
+      const tI = iM.reduce((s,i)=>s+parseFloat(i.monto||0),0);
+      if(tG>0||tI>0) mesesAnio.push({mes:MESES[m-1],tG,tI,bal:tI-tG});
+    }
+    extraHTML = '<h2>Evolución mensual '+anio+'</h2><table><thead><tr><th>Mes</th><th>Ingresos</th><th>Gastos</th><th>Balance</th></tr></thead><tbody>'+
+      mesesAnio.map(r=>'<tr><td>'+r.mes+'</td><td class="blue">$'+r.tI.toLocaleString('es-AR')+'</td><td class="red">$'+r.tG.toLocaleString('es-AR')+'</td><td class="'+(r.bal>=0?'green':'red')+'">$'+r.bal.toLocaleString('es-AR')+'</td></tr>').join('')+
+      '</tbody></table>';
+  }
+
+  if(tipo === 'cuotas'){
+    // Todas las cuotas activas del historial completo
+    const cuotasActRep = allG.filter(g=>{
+      const ca=parseInt(g.cuota_actual||0), ct=parseInt(g.total_cuotas||0);
+      return ca>0 && ct>0 && ca<ct;
+    });
+    extraHTML = '<h2>Cuotas activas</h2><table><thead><tr><th>Descripción</th><th>Cuota</th><th>Restantes</th><th>Monto/cuota</th></tr></thead><tbody>'+
+      (cuotasActRep.length ? cuotasActRep.map(g=>'<tr><td>'+g.desc+'</td><td>'+g.cuota_actual+'/'+g.total_cuotas+'</td><td>'+(parseInt(g.total_cuotas)-parseInt(g.cuota_actual))+'</td><td>$'+g.monto.toLocaleString('es-AR')+'</td></tr>').join('') : '<tr><td colspan="4" style="color:#aaa;text-align:center">Sin cuotas activas</td></tr>')+
+      '</tbody></table>';
+  }
+
+  if(tipo === 'categorias'){
+    const catSel = document.getElementById('rep-cat-sel')?.value||'Todas';
+    const gastosRep = catSel==='Todas' ? gastosDelMes : gastosDelMes.filter(g=>g.cat===catSel);
+    const byCat = {};
+    gastosRep.forEach(g=>{ byCat[g.cat||'Sin cat']=(byCat[g.cat||'Sin cat']||0)+g.monto; });
+    extraHTML = '<h2>Gastos por categoría — '+mesLabel+'</h2><table><thead><tr><th>Categoría</th><th>Total</th><th>% del gasto</th></tr></thead><tbody>'+
+      Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([cat,tot])=>'<tr><td>'+cat+'</td><td>$'+tot.toLocaleString('es-AR')+'</td><td>'+(totalG>0?Math.round(tot/totalG*100):0)+'%</td></tr>').join('')+
+      '</tbody></table>';
+  }
+
+  // Insertar contenido extra en el HTML del reporte
+  const finalHTML = html.replace('</body></html>', extraHTML + '</body></html>');
+
   const win = window.open('','_blank');
   if(!win){ toast('❌ Bloqueaste las ventanas emergentes — permitilas para descargar PDF','error'); return; }
-  win.document.write(html);
+  win.document.write(finalHTML);
   win.document.close();
   win.focus();
-  setTimeout(()=>{ win.print(); }, 400);
-  toast('✓ Reporte abierto — usá Ctrl+P / Guardar como PDF','success');
+  setTimeout(()=>{ win.print(); }, 500);
+  toast('✓ Reporte abierto — Ctrl+P para guardar como PDF','success');
 }
 
 // ══════ CHARTS ══════
