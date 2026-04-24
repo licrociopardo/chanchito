@@ -431,6 +431,10 @@ textarea{resize:vertical;min-height:68px}
     </div>
     <div class="login-error" id="lerr">❌ Usuario o contraseña incorrectos</div>
     <button class="login-btn" onclick="doLogin()">Entrar al chanchito 🐷</button>
+    <div style="margin-top:14px;font-size:11px;color:var(--text3);text-align:center">
+      ¿No podés entrar? <span style="color:var(--accent);cursor:pointer;text-decoration:underline" onclick="resetCredentials()">Restaurar contraseña original</span>
+    </div>
+
 
   </div>
 </div>
@@ -1307,6 +1311,21 @@ const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov'
 // ══════ LOGIN ══════
 document.getElementById('lp').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin()});
 document.getElementById('lu').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin()});
+
+function resetCredentials(){
+  if(!confirm('Esto va a restaurar el usuario a "rocio" y la contraseña a "12345". ¿Continuás?')) return;
+  // Limpiar todo lo guardado en localStorage relacionado a credenciales
+  localStorage.removeItem('chanchito_pass_rocio');
+  localStorage.removeItem('chanchito_pass_changed');
+  localStorage.removeItem('chanchito_user');
+  // Restaurar en memoria
+  Object.keys(USERS_DB).forEach(k => delete USERS_DB[k]);
+  USERS_DB['rocio'] = '12345';
+  document.getElementById('lu').value = 'rocio';
+  document.getElementById('lp').value = '';
+  document.getElementById('lerr').style.display = 'none';
+  alert('✅ Listo. Entrá con usuario "rocio" y contraseña "12345".');
+}
 
 async function doLogin(){
   const u=document.getElementById('lu').value.trim().toLowerCase();
@@ -3481,6 +3500,7 @@ function cambiarContrasena(){
   }
   USERS_DB[currentUser] = nueva;
   localStorage.setItem('chanchito_pass_'+currentUser, nueva);
+  localStorage.setItem('chanchito_pass_changed', '1'); // marcar que el usuario cambió la contraseña
   document.getElementById('perfil-pass-actual').value    = '';
   document.getElementById('perfil-pass-nueva').value     = '';
   document.getElementById('perfil-pass-confirmar').value = '';
@@ -3489,17 +3509,23 @@ function cambiarContrasena(){
 }
 
 // Cargar contraseña guardada al iniciar si existe
+// Solo aplica si el usuario cambió la contraseña desde Mi Perfil
 (function loadSavedCredentials(){
   try{
-    Object.keys(USERS_DB).forEach(u=>{
-      const saved = localStorage.getItem('chanchito_pass_'+u);
-      if(saved) USERS_DB[u] = saved;
-    });
-    // También restaurar usuario renombrado
+    // Solo restaurar si hay una contraseña explícitamente cambiada por el usuario
+    // (marcada con el flag 'chanchito_pass_changed')
+    const changed = localStorage.getItem('chanchito_pass_changed');
+    if(changed === '1'){
+      Object.keys(USERS_DB).forEach(u=>{
+        const saved = localStorage.getItem('chanchito_pass_'+u);
+        if(saved) USERS_DB[u] = saved;
+      });
+    }
+    // Restaurar usuario renombrado si existe
     const savedUser = localStorage.getItem('chanchito_user');
-    if(savedUser && !USERS_DB[savedUser]){
-      const keys = Object.keys(USERS_DB);
-      if(keys.length>0){ USERS_DB[savedUser]=USERS_DB[keys[0]]; delete USERS_DB[keys[0]]; }
+    if(savedUser && !USERS_DB[savedUser] && USERS_DB['rocio']){
+      USERS_DB[savedUser] = USERS_DB['rocio'];
+      delete USERS_DB['rocio'];
     }
   }catch(e){}
 })();
