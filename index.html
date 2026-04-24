@@ -1702,6 +1702,22 @@ function fillMesSel(){
   document.getElementById('tsub').textContent = txt + ' · Rocío';
 }
 
+// Calcula el monto que le corresponde a Rocío según cómo está asignado el gasto
+function montoPropio(g){
+  const monto = Math.abs(parseFloat(g.monto||0));
+  const asig = String(g.asig||g.asignado_a||'').trim();
+  if(!asig || asig.toLowerCase()==='rocio' || asig.toLowerCase()==='rocío') return monto;
+  // Compartido 50/50
+  const m50 = asig.match(/50\s*\/\s*50/i);
+  if(m50) return Math.round(monto / 2);
+  // Compartido con R:X% A:Y%
+  const mPct = asig.match(/R:(\d+(?:\.\d+)?)%/i);
+  if(mPct) return Math.round(monto * parseFloat(mPct[1]) / 100);
+  // Compartido genérico sin porcentaje → asumir 50%
+  if(asig.toLowerCase().includes('compartido')) return Math.round(monto / 2);
+  return monto;
+}
+
 function updateDashboardMetrics(){
   const {mes: mesActual, anio: anioActual} = getMesAnioSel();
 
@@ -1710,7 +1726,7 @@ function updateDashboardMetrics(){
     const p=String(g.fecha||'').split('/');
     return parseInt(p[1])===mesActual && parseInt(p[2])===anioActual;
   });
-  const totalGastos = gastosDelMes.reduce((s,g)=>s+(g.monto||0),0);
+  const totalGastos = gastosDelMes.reduce((s,g)=>s+montoPropio(g),0);
 
   // ── Ingresos del mes
   const ingresosDelMes = INGRESOS_CACHE.filter(i=>{
@@ -1798,7 +1814,7 @@ function updateDashboardMetrics(){
   const limiteTotal = PRESUP_BASE.reduce((s,p)=>s+p.limite,0);
   const pctPresup   = limiteTotal>0?Math.round(totalGastos/limiteTotal*100):0;
   const disponible  = limiteTotal - totalGastos;
-  const alertas     = PRESUP_BASE.filter(p=>{ const g=gastosDelMes.filter(x=>(x.cat||x.categoria)===p.cat).reduce((s,x)=>s+x.monto,0); return g>p.limite; }).length;
+  const alertas     = PRESUP_BASE.filter(p=>{ const g=GASTOS_CACHE.filter(x=>(x.cat||x.categoria)===p.cat).reduce((s,x)=>s+montoPropio(x),0); return g>p.limite*0.8; }).length;
   set('presup-total',     '$'+limiteTotal.toLocaleString('es-AR'));
   set('presup-gastado',   '$'+totalGastos.toLocaleString('es-AR'));
   set('presup-disponible','$'+Math.max(0,disponible).toLocaleString('es-AR'));
@@ -1859,7 +1875,7 @@ function updateDashboardMetrics(){
 
       // Gastos reales (solo pasado y mes actual)
       const gMes = isFuture ? 0 :
-        allG.filter(g=>{const p=String(g.fecha||'').split('/');return p.length>=3&&p[2]+'-'+p[1].padStart(2,'0')===kG;}).reduce((s,g)=>s+Math.abs(g.monto||0),0);
+        allG.filter(g=>{const p=String(g.fecha||'').split('/');return p.length>=3&&p[2]+'-'+p[1].padStart(2,'0')===kG;}).reduce((s,g)=>s+montoPropio(g),0);
       gastData.push(gMes);
 
       // Ingresos: real si existe en el historial, promedio si es futuro
@@ -1934,7 +1950,7 @@ function renderCatList(){
     const parts = String(g.fecha||'').split('/');
     if(parseInt(parts[1])!==mesActual||parseInt(parts[2])!==anioActual) return;
     const cat = g.cat || g.categoria || 'Sin categoría';
-    byCat[cat] = (byCat[cat]||0) + Math.abs(g.monto||0);
+    byCat[cat] = (byCat[cat]||0) + montoPropio(g);
   });
   const cats = Object.entries(byCat).sort((a,b)=>b[1]-a[1]).slice(0,6);
   const maxAmt = cats.length ? cats[0][1] : 1;
@@ -2103,14 +2119,11 @@ function renderPresupuesto(){
 
 function refreshPresupChart(){
   if(!charts.presup||!PRESUP_BASE.length) return;
-  const {mes:mesActual, anio:anioActual}=getMesAnioSel();
-  // Calcular gasto real por categoría del mes seleccionado
+  // GASTOS_CACHE ya está filtrado por el mes seleccionado — no filtrar de nuevo
   const gastosCat={};
   GASTOS_CACHE.forEach(g=>{
-    const p=String(g.fecha||'').split('/');
-    if(parseInt(p[1])!==mesActual||parseInt(p[2])!==anioActual) return;
     const cat=g.cat||g.categoria||'';
-    gastosCat[cat]=(gastosCat[cat]||0)+Math.abs(g.monto||0);
+    if(cat) gastosCat[cat]=(gastosCat[cat]||0)+montoPropio(g);
   });
   // Actualizar PRESUP_BASE.gasto
   PRESUP_BASE.forEach(d=>{ d.gasto=gastosCat[d.cat]||0; });
@@ -2634,7 +2647,7 @@ function dl(tipo, mesVal){
   const ingresosDelMes = tipo==='anual'
     ? INGRESOS_CACHE.filter(i=>{const p=String(i.fecha||'').split('/');return p.length>=3&&parseInt(p[2])===anio;})
     : INGRESOS_CACHE.filter(i=>{const p=String(i.fecha||'').split('/');return p.length>=3&&parseInt(p[1])===mes&&parseInt(p[2])===anio;});
-  const totalG=gastosDelMes.reduce((s,g)=>s+g.monto,0);
+  const totalG=gastosDelMes.reduce((s,g)=>s+montoPropio(g),0);
   const totalI=ingresosDelMes.reduce((s,i)=>s+parseFloat(i.monto||0),0);
 
   // Estilos base compartidos
@@ -2772,8 +2785,8 @@ function initCharts(){
         {label:'Límite',data:[],backgroundColor:'rgba(0,0,0,0.05)',borderRadius:4,borderSkipped:false,borderColor:'rgba(0,0,0,0.12)',borderWidth:1}
       ]
     },
-    options:{...dflt,indexAxis:'y',scales:{
-      x:{...dflt.scales.x,ticks:{...dflt.scales.x.ticks,callback:v=>'$'+(v/1000)+'k'}},
+    options:{...dflt,indexAxis:'y',plugins:{tooltip:{callbacks:{label:ctx=>' $'+Math.round(ctx.raw||0).toLocaleString('es-AR')}}},scales:{
+      x:{grid:{color:gridC},ticks:{color:tickC,font:{size:10},callback:v=>v>=1000000?'$'+(v/1000000).toFixed(1)+'M':v>=1000?'$'+(v/1000).toFixed(0)+'k':'$'+v}},
       y:{grid:{color:gridC},ticks:{color:tickC,font:{size:10}}}
     }}
   });
