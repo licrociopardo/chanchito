@@ -607,8 +607,15 @@ textarea{resize:vertical;min-height:68px}
       <div class="metric-card"><div class="metric-label">Disponible</div><div class="metric-value blue" id="presup-disponible">—</div><div class="metric-delta delta-neutral" id="presup-disp-pct">restante</div></div>
       <div class="metric-card"><div class="metric-label">Alertas</div><div class="metric-value amber" id="presup-alertas">—</div><div class="metric-delta delta-neutral">Categorías en rojo</div></div>
     </div>
-    <div style="margin-bottom:14px">
-      <div style="position:relative;height:200px"><canvas id="ch-presup" role="img" aria-label="Presupuesto por categoría">Presupuesto</canvas></div>
+    <div class="card" style="margin-bottom:14px">
+      <div class="card-hd">
+        <div><div class="card-title">Gasto real vs. límite por categoría</div><div class="card-sub" id="presup-mes-sub">Mes actual</div></div>
+        <div style="display:flex;gap:10px;font-size:10px;color:var(--text3);flex-shrink:0">
+          <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:2px;background:#d63a3a;display:inline-block"></span>Gastado</span>
+          <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:2px;background:rgba(0,0,0,.1);border:1px solid rgba(0,0,0,.2);display:inline-block"></span>Límite</span>
+        </div>
+      </div>
+      <div style="position:relative;height:320px"><canvas id="ch-presup" role="img" aria-label="Presupuesto por categoría">Presupuesto</canvas></div>
     </div>
     <div class="presup-grid" id="presup-grid"></div>
     <div id="presup-edit-panel" style="display:none;margin-top:14px" class="card">
@@ -2135,21 +2142,42 @@ function renderPresupuesto(){
 
 function refreshPresupChart(){
   if(!charts.presup||!PRESUP_BASE.length) return;
-  // GASTOS_CACHE ya está filtrado por el mes seleccionado — no filtrar de nuevo
+  // GASTOS_CACHE ya está filtrado por el mes seleccionado
   const gastosCat={};
   GASTOS_CACHE.forEach(g=>{
     const cat=g.cat||g.categoria||'';
     if(cat) gastosCat[cat]=(gastosCat[cat]||0)+montoPropio(g);
   });
-  // Actualizar PRESUP_BASE.gasto
   PRESUP_BASE.forEach(d=>{ d.gasto=gastosCat[d.cat]||0; });
-  charts.presup.data.labels = PRESUP_BASE.map(d=>d.cat);
-  charts.presup.data.datasets[0].data = PRESUP_BASE.map(d=>d.gasto);
-  charts.presup.data.datasets[0].backgroundColor = PRESUP_BASE.map(d=>{
-    const cat=CFG.cats.find(cc=>cc.name===d.cat);
-    return cat?cat.color+'88':'#88888855';
+
+  // Ordenar de mayor gasto a menor para mejor legibilidad
+  const sorted=[...PRESUP_BASE].sort((a,b)=>b.gasto-a.gasto);
+
+  charts.presup.data.labels = sorted.map(d=>d.cat);
+  charts.presup.data.datasets[0].data = sorted.map(d=>d.gasto);
+  charts.presup.data.datasets[0].backgroundColor = sorted.map(d=>{
+    const pct = d.limite>0 ? d.gasto/d.limite : 0;
+    // Color semáforo: verde < 80%, ámbar 80-100%, rojo > 100%
+    if(pct>=1)    return 'rgba(214,58,58,0.8)';
+    if(pct>=0.8)  return 'rgba(232,168,56,0.8)';
+    return 'rgba(26,158,92,0.75)';
   });
-  charts.presup.data.datasets[1].data = PRESUP_BASE.map(d=>d.limite);
+  charts.presup.data.datasets[1].data = sorted.map(d=>d.limite);
+
+  // Actualizar altura del canvas según cantidad de categorías
+  const canvas = document.getElementById('ch-presup');
+  if(canvas && canvas.parentElement){
+    const h = Math.max(280, sorted.length * 44);
+    canvas.parentElement.style.height = h+'px';
+  }
+
+  // Actualizar subtítulo
+  const sub = document.getElementById('presup-mes-sub');
+  if(sub){
+    const mesEl = document.getElementById('mes-sel');
+    sub.textContent = mesEl ? mesEl.options[mesEl.selectedIndex]?.text||'' : '';
+  }
+
   charts.presup.update();
 }
 
@@ -2800,14 +2828,44 @@ function initCharts(){
     data:{
       labels:[],
       datasets:[
-        {label:'Gastado',data:[],backgroundColor:[],borderRadius:4,borderSkipped:false},
-        {label:'Límite',data:[],backgroundColor:'rgba(0,0,0,0.05)',borderRadius:4,borderSkipped:false,borderColor:'rgba(0,0,0,0.12)',borderWidth:1}
+        {label:'Gastado',data:[],backgroundColor:[],borderRadius:6,borderSkipped:false,barPercentage:0.5},
+        {label:'Límite',data:[],backgroundColor:'rgba(0,0,0,0.07)',borderRadius:6,borderSkipped:false,barPercentage:0.5,borderColor:'rgba(0,0,0,0.15)',borderWidth:1}
       ]
     },
-    options:{...dflt,indexAxis:'y',plugins:{tooltip:{callbacks:{label:ctx=>' $'+Math.round(ctx.raw||0).toLocaleString('es-AR')}}},scales:{
-      x:{grid:{color:gridC},ticks:{color:tickC,font:{size:10},callback:v=>v>=1000000?'$'+(v/1000000).toFixed(1)+'M':v>=1000?'$'+(v/1000).toFixed(0)+'k':'$'+v}},
-      y:{grid:{color:gridC},ticks:{color:tickC,font:{size:10}}}
-    }}
+    options:{
+      indexAxis:'y',
+      responsive:true,
+      maintainAspectRatio:false,
+      animation:{duration:400},
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          callbacks:{
+            label: ctx=>' $'+Math.round(ctx.raw||0).toLocaleString('es-AR'),
+            afterLabel: ctx=>{
+              if(ctx.datasetIndex===0){
+                const lim=ctx.chart.data.datasets[1]?.data[ctx.dataIndex]||0;
+                const pct=lim>0?Math.round(ctx.raw/lim*100):0;
+                return `  ${pct}% del límite`;
+              }
+              return '';
+            }
+          }
+        }
+      },
+      scales:{
+        x:{
+          grid:{color:'rgba(0,0,0,.04)'},
+          ticks:{color:tickC,font:{size:11},callback:v=>v>=1000000?'$'+(v/1000000).toFixed(1)+'M':v>=1000?'$'+(v/1000).toFixed(0)+'k':'$'+v},
+          border:{display:false}
+        },
+        y:{
+          grid:{display:false},
+          ticks:{color:tickC,font:{size:12,weight:'500'}},
+          border:{display:false}
+        }
+      }
+    }
   });
 
   // Proyección
