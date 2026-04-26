@@ -2181,18 +2181,21 @@ function renderProj(){
   const now=new Date();
   const mesHoyPj=now.getMonth()+1, anioHoyPj=now.getFullYear();
   // Calcular promedio y gastos por mes reales
+  // Usar GASTOS_ALL para historial completo (no solo el mes seleccionado)
+  const allGProj=(GASTOS_ALL&&GASTOS_ALL.length)?GASTOS_ALL:GASTOS_CACHE;
   const gastosPorMes={};
-  GASTOS_CACHE.forEach(g=>{
+  allGProj.forEach(g=>{
     const p=String(g.fecha||'').split('/');
     if(p.length<3)return;
     const k=p[2]+'-'+p[1].padStart(2,'0');
-    gastosPorMes[k]=(gastosPorMes[k]||0)+Math.abs(g.monto||0);
+    gastosPorMes[k]=(gastosPorMes[k]||0)+montoPropio(g);
   });
   const mesesConDatos=Object.values(gastosPorMes);
   const promedioGasto=mesesConDatos.length?Math.round(mesesConDatos.reduce((a,b)=>a+b,0)/mesesConDatos.length):0;
-  // Promedio ingresos por mes único
+  // Ingresos desde INGRESOS_ALL
+  const ingSrcProj=(INGRESOS_ALL&&INGRESOS_ALL.length)?INGRESOS_ALL:INGRESOS_CACHE;
   const ingPorMes={};
-  INGRESOS_CACHE.forEach(i=>{
+  ingSrcProj.forEach(i=>{
     const p=String(i.fecha||'').split('/');
     if(p.length<3)return;
     const k=p[2]+'-'+p[1].padStart(2,'0');
