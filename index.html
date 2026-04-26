@@ -168,7 +168,7 @@ tbody td strong{color:var(--text);font-weight:600}
 .cat-amt{font-size:11px;color:var(--text2);width:68px;text-align:right;font-family:'JetBrains Mono',monospace;font-weight:500}
 
 /* ─── PRESUPUESTO ─── */
-.presup-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.presup-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
 .presup-cat{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px 18px;box-shadow:var(--shadow)}
 .presup-cat-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
 .presup-cat-nm{font-size:13px;font-weight:600;color:var(--text);display:flex;align-items:center;gap:6px}
@@ -607,16 +607,8 @@ textarea{resize:vertical;min-height:68px}
       <div class="metric-card"><div class="metric-label">Disponible</div><div class="metric-value blue" id="presup-disponible">—</div><div class="metric-delta delta-neutral" id="presup-disp-pct">restante</div></div>
       <div class="metric-card"><div class="metric-label">Alertas</div><div class="metric-value amber" id="presup-alertas">—</div><div class="metric-delta delta-neutral">Categorías en rojo</div></div>
     </div>
-    <div class="card" style="margin-bottom:14px">
-      <div class="card-hd">
-        <div><div class="card-title">Gasto real vs. límite por categoría</div><div class="card-sub" id="presup-mes-sub">Mes actual</div></div>
-        <div style="display:flex;gap:10px;font-size:10px;color:var(--text3);flex-shrink:0">
-          <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:2px;background:#d63a3a;display:inline-block"></span>Gastado</span>
-          <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:2px;background:rgba(0,0,0,.1);border:1px solid rgba(0,0,0,.2);display:inline-block"></span>Límite</span>
-        </div>
-      </div>
-      <div style="position:relative;height:320px"><canvas id="ch-presup" role="img" aria-label="Presupuesto por categoría">Presupuesto</canvas></div>
-    </div>
+    <!-- canvas oculto para mantener compatibilidad con refreshPresupChart -->
+    <canvas id="ch-presup" style="display:none"></canvas>
     <div class="presup-grid" id="presup-grid"></div>
     <div id="presup-edit-panel" style="display:none;margin-top:14px" class="card">
       <div class="card-hd">
@@ -2113,22 +2105,41 @@ function renderPresupuesto(){
   // Actualizar d.gasto en PRESUP_BASE antes de renderizar
   PRESUP_BASE.forEach(d=>{ d.gasto=gastosCat[d.cat]||0; });
 
-  grid.innerHTML=PRESUP_BASE.map((d,i)=>{
+  // Ordenar: primero los más cerca del límite, luego los demás
+  const sorted=[...PRESUP_BASE].sort((a,b)=>{
+    const pA=a.limite>0?a.gasto/a.limite:0;
+    const pB=b.limite>0?b.gasto/b.limite:0;
+    return pB-pA;
+  });
+  grid.innerHTML=sorted.map((d,i)=>{
     const pct=d.limite>0?Math.round(d.gasto/d.limite*100):(d.gasto>0?100:0);
-    const cls=pct>=100?'p-over':pct>=80?'p-warn':'p-ok';
-    const fcls=pct>=100?'p-fill-over':pct>=80?'p-fill-warn':'p-fill-ok';
     const w=Math.min(pct,100);
     const cat=CFG.cats.find(c=>c.name===d.cat);
     const icon=cat?cat.icon:'📦';
-    return `<div class="presup-cat">
-      <div class="presup-cat-hd">
-        <div class="presup-cat-nm">${icon} ${d.cat}</div>
-        <div class="presup-pct ${cls}">${pct}%</div>
+    const disponible=d.limite-d.gasto;
+    // colores semaforo
+    const barColor=pct>=100?'#d63a3a':pct>=80?'#e8a838':'#1a9e5c';
+    const pctColor=pct>=100?'var(--red)':pct>=80?'var(--amber)':'var(--green)';
+    const dispText=pct>=100
+      ? `<span style="color:var(--red);font-size:11px;font-weight:600">$${Math.abs(disponible).toLocaleString('es-AR')} sobre el límite</span>`
+      : `<span style="color:var(--text3);font-size:11px">$${disponible.toLocaleString('es-AR')} disponible</span>`;
+    return `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px;display:flex;flex-direction:column;gap:8px">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:18px">${icon}</span>
+          <span style="font-size:13px;font-weight:600;color:var(--text)">${d.cat}</span>
+        </div>
+        <span style="font-size:16px;font-weight:700;color:${pctColor}">${pct}%</span>
       </div>
-      <div class="presup-bar-bg"><div class="presup-fill ${fcls}" style="width:${w}%"></div></div>
-      <div class="presup-nums">
-        <span class="presup-used">Gastado: $${d.gasto.toLocaleString('es-AR')}</span>
-        <span class="presup-lim">Límite: $${d.limite.toLocaleString('es-AR')}</span>
+      <div style="background:var(--bg3);border-radius:99px;height:8px;overflow:hidden">
+        <div style="height:8px;border-radius:99px;background:${barColor};width:${w}%;transition:width .4s"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:13px;font-weight:700;color:var(--text)">$${d.gasto.toLocaleString('es-AR')}</span>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:1px">
+          ${dispText}
+          <span style="font-size:10px;color:var(--text3)">límite $${d.limite.toLocaleString('es-AR')}</span>
+        </div>
       </div>
     </div>`;
   }).join('');
