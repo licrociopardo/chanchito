@@ -1465,9 +1465,9 @@ async function loadFromSheets(silent=false){
         ct = ct ? parseInt(ct) : 0;
 
         // 2. Si no hay cuota en columnas, parsear desde descripción
-        // Formato: "ALGO (cuota 4/12)" o "ALGO (cuota 4/12)"
+        // Formato: "ALGO (cuota 4/12)"
         let monto = parseFloat(r.monto||0);
-        const desc = r.descripcion||'';
+        const desc = String(r.descripcion||'').trim();
         if((!ca || !ct) && desc){
           const m = desc.match(/cuota\s+(\d+)\s*\/\s*(\d+)/i);
           if(m){
@@ -1477,12 +1477,12 @@ async function loadFromSheets(silent=false){
         }
 
         return {
-          id:     r.id||'',
+          id:     String(r.id||''),
           fecha:  r.fecha,
           desc:   desc,
-          cat:    r.categoria,
-          medio:  r.medio_pago,
-          asig:   r.asignado_a,
+          cat:    String(r.categoria||''),
+          medio:  String(r.medio_pago||''),
+          asig:   String(r.asignado_a||''),
           cuotas: ca&&ct?`${ca}/${ct}`:'—',
           cuota_actual: ca||0,
           total_cuotas: ct||0,
@@ -1573,8 +1573,9 @@ async function loadFromSheets(silent=false){
       const deudasSheets = respDeu.data.map(r=>({
         id:       r.id||'d'+Math.random(),
         tipo:     r.tipo||'me_deben',
-        // 'persona' puede venir como 'tipo.1' si el header de Sheets está mal
-        persona:  r.persona||r['tipo.1']||r.tipo1||'',
+        // La col C es siempre 'persona' aunque el header diga 'tipo' por el bug de Sheets
+        // Intentar múltiples nombres posibles que puede generar normalizeHeaders
+        persona:  r.persona||r['tipo.1']||r['tipo_1']||r.tipo1||r['persona.1']||'',
         monto:    parseFloat(r.monto||0),
         fecha:    r.fecha||'',
         desc:     r.descripcion||r.desc||'',
