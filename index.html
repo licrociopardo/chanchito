@@ -531,6 +531,13 @@ textarea{resize:vertical;min-height:68px}
       <div class="cat-list" id="cat-list" style="columns:2;column-gap:24px"></div>
     </div>
 
+    <!-- Balance proyectado 12 meses -->
+    <div class="card" style="margin-bottom:14px">
+      <div class="card-hd">
+        <div><div class="card-title">📊 Balance proyectado — próximos 12 meses</div><div class="card-sub">Ingresos estimados − gastos comprometidos (cuotas + eventos)</div></div>
+      </div>
+      <div id="dash-balance-proj" style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-top:4px"></div>
+    </div>
 
     <!-- Compromisos futuros por cuotas -->
     <div class="card" style="margin-top:14px">
@@ -673,7 +680,7 @@ textarea{resize:vertical;min-height:68px}
         <div id="form-add-ingreso" style="display:none" class="form-grid" style="margin-top:12px">
           <div class="fg"><label class="fl">Descripción</label><input class="fi" id="ei-desc" placeholder="Aguinaldo, bono..."></div>
           <div class="fg"><label class="fl">Monto</label><input class="fi" id="ei-monto" type="number" placeholder="0"></div>
-          <div class="fg"><label class="fl">Mes</label><select class="fs" id="ei-mes"><option value="5">Mayo 2026</option><option value="6">Jun 2026</option><option value="7">Jul 2026</option><option value="8">Ago 2026</option><option value="9">Sep 2026</option><option value="10">Oct 2026</option><option value="11">Nov 2026</option><option value="12">Dic 2026</option></select></div>
+          <div class="fg"><label class="fl">Mes</label><select class="fs" id="ei-mes"><option value="1">Enero</option><option value="2">Febrero</option><option value="3">Marzo</option><option value="4">Abril</option><option value="5">Mayo</option><option value="6">Junio</option><option value="7">Julio</option><option value="8">Agosto</option><option value="9">Septiembre</option><option value="10">Octubre</option><option value="11">Noviembre</option><option value="12">Diciembre</option></select></div><div class="fg"><label class="fl">Año</label><select class="fs" id="ei-anio"><option value="2026">2026</option><option value="2027">2027</option><option value="2028">2028</option></select></div>
           <div class="fg"><label class="fl">Tipo</label><select class="fs" id="ei-tipo"><option>Aguinaldo</option><option>Bono</option><option>Freelance</option><option>Otro</option></select></div>
           <div class="fg full" style="flex-direction:row;gap:7px;margin-top:4px">
             <button class="btn btn-primary btn-sm" onclick="addEvento('ingreso')">Guardar</button>
@@ -690,7 +697,7 @@ textarea{resize:vertical;min-height:68px}
         <div id="form-add-gasto" style="display:none" class="form-grid">
           <div class="fg"><label class="fl">Descripción</label><input class="fi" id="eg-desc" placeholder="Vacaciones, regalo..."></div>
           <div class="fg"><label class="fl">Monto estimado</label><input class="fi" id="eg-monto" type="number" placeholder="0"></div>
-          <div class="fg"><label class="fl">Mes</label><select class="fs" id="eg-mes"><option value="5">Mayo 2026</option><option value="6">Jun 2026</option><option value="7">Jul 2026</option><option value="8">Ago 2026</option><option value="9">Sep 2026</option><option value="10">Oct 2026</option><option value="11">Nov 2026</option><option value="12">Dic 2026</option></select></div>
+          <div class="fg"><label class="fl">Mes</label><select class="fs" id="eg-mes"><option value="1">Enero</option><option value="2">Febrero</option><option value="3">Marzo</option><option value="4">Abril</option><option value="5">Mayo</option><option value="6">Junio</option><option value="7">Julio</option><option value="8">Agosto</option><option value="9">Septiembre</option><option value="10">Octubre</option><option value="11">Noviembre</option><option value="12">Diciembre</option></select></div><div class="fg"><label class="fl">Año</label><select class="fs" id="eg-anio"><option value="2026">2026</option><option value="2027">2027</option><option value="2028">2028</option></select></div>
           <div class="fg"><label class="fl">Categoría</label><select class="fs" id="eg-cat"><option>Ocio</option><option>Viaje</option><option>Regalo</option><option>Salud</option><option>Otro</option></select></div>
           <div class="fg full" style="flex-direction:row;gap:7px;margin-top:4px">
             <button class="btn btn-primary btn-sm" onclick="addEvento('gasto')">Guardar</button>
@@ -1828,6 +1835,7 @@ function updateDashboardMetrics(){
   // Refrescar chart presupuesto con datos reales
   refreshPresupChart();
   renderCompromisosFuturos();
+  renderDashBalanceProj();
   // Presupuesto metrics
   const limiteTotal = PRESUP_BASE.reduce((s,p)=>s+p.limite,0);
   const pctPresup   = limiteTotal>0?Math.round(totalGastos/limiteTotal*100):0;
@@ -2252,16 +2260,22 @@ function renderProj(){
   container.style.gridTemplateColumns=`repeat(${cols},1fr)`;
   container.innerHTML=projGastos.slice(0,cols).map((v,i)=>{
     const pct=Math.round(v/max*100);
-    const color=v>180000?'var(--red)':v>150000?'var(--amber)':'var(--green)';
+    const gColor=v>180000?'var(--red)':v>150000?'var(--amber)':'var(--green)';
+    const ing=projIng[i]||0;
+    const bal=ing-v;
+    const balColor=bal>=0?'var(--green)':'var(--red)';
     const d=new Date(anioSelPj,mesSelPj-1+i,1);
     const evMes=d.getMonth()+1;
     const hasEv=eventosGastos.some(e=>e.mes===evMes)||eventosIngresos.some(e=>e.mes===evMes);
     const isHoy=d.getFullYear()===anioHoyPj&&d.getMonth()+1===mesHoyPj;
     return `<div class="proj-m ${isHoy?'hoy':''}">
       <div class="proj-m-nm">${projLabels[i]}</div>
-      <div class="proj-m-v" style="color:${color}">$${(v/1000).toFixed(0)}k</div>
-      ${hasEv?`<div class="proj-m-tag">📌 evento</div>`:''}
-      <div class="proj-m-bar"><div class="proj-m-fill" style="width:${pct}%;background:${color}"></div></div>
+      <div style="font-size:10px;color:var(--text3);margin-bottom:1px">Gasto</div>
+      <div class="proj-m-v" style="color:${gColor}">$${(v/1000).toFixed(0)}k</div>
+      ${ing>0?`<div style="font-size:10px;color:var(--text3);margin-top:4px">Ingreso</div><div style="font-size:12px;font-weight:700;color:var(--blue)">$${(ing/1000).toFixed(0)}k</div>`:''}
+      ${ing>0?`<div style="font-size:10px;color:var(--text3);margin-top:4px">Balance</div><div style="font-size:12px;font-weight:700;color:${balColor}">${bal>=0?'+':''}$${(bal/1000).toFixed(0)}k</div>`:''}
+      ${hasEv?`<div class="proj-m-tag" style="margin-top:4px">📌 evento</div>`:''}
+      <div class="proj-m-bar" style="margin-top:6px"><div class="proj-m-fill" style="width:${pct}%;background:${gColor}"></div></div>
     </div>`;
   }).join('');
 
@@ -2320,29 +2334,78 @@ function renderEventos(){
 
 function showAddEvento(tipo){ document.getElementById('form-add-'+tipo).style.display='grid'; }
 function hideEvento(tipo){ document.getElementById('form-add-'+tipo).style.display='none'; }
-function addEvento(tipo){
+async function addEvento(tipo){
+  const now = new Date();
+  const anioActual = now.getFullYear();
+
   if(tipo==='ingreso'){
-    const desc=document.getElementById('ei-desc').value.trim();
-    const monto=parseFloat(document.getElementById('ei-monto').value);
-    const mes=parseInt(document.getElementById('ei-mes').value);
-    const t=document.getElementById('ei-tipo').value;
+    const desc  = document.getElementById('ei-desc').value.trim();
+    const monto = parseFloat(document.getElementById('ei-monto').value);
+    const mes   = parseInt(document.getElementById('ei-mes').value);
+    const anio  = parseInt(document.getElementById('ei-anio')?.value || anioActual);
+    const t     = document.getElementById('ei-tipo').value;
     if(!desc||!monto){toast('Completá descripción y monto','warn');return;}
-    eventosIngresos.push({desc,monto,mes,tipo:t,icon:'💰'});
-    document.getElementById('ei-desc').value='';document.getElementById('ei-monto').value='';
+
+    // Fecha: primer día del mes seleccionado
+    const pad = n=>String(n).padStart(2,'0');
+    const fecha = '01/'+pad(mes)+'/'+anio;
+
+    // Guardar en Sheets como ingreso real
+    try{
+      const resp = await sheetsWrite('addIngreso',{
+        fecha, descripcion:desc, categoria:t,
+        monto, persona:'Rocío', tipo:'Proyectado',
+        recurrente:'No', notas:'Cargado desde Proyección'
+      });
+      if(resp&&resp.ok){
+        const nuevoIng = {id:resp.id||'pi_'+Date.now(), fecha, descripcion:desc,
+          categoria:t, monto, persona:'Rocío', tipo:'Proyectado', recurrente:'No', notas:'Cargado desde Proyección'};
+        INGRESOS_CACHE.unshift(nuevoIng);
+        if(INGRESOS_ALL) INGRESOS_ALL.unshift(nuevoIng);
+        toast('✓ Ingreso futuro guardado en Sheets e Ingresos','success');
+      }
+    }catch(e){ toast('✓ Evento en proyección (sin Sheets: '+e.message+')','warn'); }
+
+    eventosIngresos.push({desc,monto,mes,anio,tipo:t,icon:'💰'});
+    document.getElementById('ei-desc').value='';
+    document.getElementById('ei-monto').value='';
     hideEvento('ingreso');
+
   } else {
-    const desc=document.getElementById('eg-desc').value.trim();
-    const monto=parseFloat(document.getElementById('eg-monto').value);
-    const mes=parseInt(document.getElementById('eg-mes').value);
-    const cat=document.getElementById('eg-cat').value;
+    const desc  = document.getElementById('eg-desc').value.trim();
+    const monto = parseFloat(document.getElementById('eg-monto').value);
+    const mes   = parseInt(document.getElementById('eg-mes').value);
+    const anio  = parseInt(document.getElementById('eg-anio')?.value || anioActual);
+    const cat   = document.getElementById('eg-cat').value;
     if(!desc||!monto){toast('Completá descripción y monto','warn');return;}
+
+    const pad = n=>String(n).padStart(2,'0');
+    const fecha = '01/'+pad(mes)+'/'+anio;
+
+    // Guardar en Sheets como gasto real
+    try{
+      const resp = await sheetsWrite('addGastos',{
+        filas:[{fecha, descripcion:desc, categoria:cat,
+          monto, medio_pago:'Proyectado', asignado_a:'Rocío',
+          cuota_actual:'', total_cuotas:'', notas:'Cargado desde Proyección'}]
+      });
+      if(resp&&resp.ok){
+        const nuevoG = {id:(resp.ids||[])[0]||'pg_'+Date.now(), fecha, desc, cat,
+          medio:'Proyectado', asig:'Rocío', cuotas:'—', cuota_actual:0, total_cuotas:0,
+          monto, notas:'Cargado desde Proyección'};
+        if(GASTOS_ALL) GASTOS_ALL.unshift(nuevoG);
+        toast('✓ Gasto futuro guardado en Sheets y Gastos','success');
+      }
+    }catch(e){ toast('✓ Evento en proyección (sin Sheets: '+e.message+')','warn'); }
+
     const icons={Viaje:'✈️',Ocio:'🎭',Regalo:'🎁',Salud:'💊',Otro:'📦'};
-    eventosGastos.push({desc,monto,mes,cat,icon:icons[cat]||'📦'});
-    document.getElementById('eg-desc').value='';document.getElementById('eg-monto').value='';
+    eventosGastos.push({desc,monto,mes,anio,cat,icon:icons[cat]||'📦'});
+    document.getElementById('eg-desc').value='';
+    document.getElementById('eg-monto').value='';
     hideEvento('gasto');
   }
   renderProj();
-  toast('✓ Evento agregado a la proyección','success');
+  updateDashboardMetrics();
 }
 function delEvento(tipo,i){
   if(tipo==='ingreso')eventosIngresos.splice(i,1);
@@ -3693,6 +3756,73 @@ function cambiarContrasena(){
 // Login directo sin localStorage
 
 // ══════ COMPROMISOS FUTUROS POR CUOTAS ══════
+
+// ══════ BALANCE PROYECTADO DASHBOARD ══════
+function renderDashBalanceProj(){
+  const container = document.getElementById('dash-balance-proj');
+  if(!container) return;
+  const now = new Date();
+  const allG = (GASTOS_ALL && GASTOS_ALL.length) ? GASTOS_ALL : GASTOS_CACHE;
+  const ingSrc = (INGRESOS_ALL && INGRESOS_ALL.length) ? INGRESOS_ALL : INGRESOS_CACHE;
+
+  // Promedio de ingresos reales
+  const ingPorMes={};
+  ingSrc.forEach(i=>{
+    const p=String(i.fecha||'').split('/');
+    if(p.length<3) return;
+    const k=p[2]+'-'+p[1].padStart(2,'0');
+    ingPorMes[k]=(ingPorMes[k]||0)+parseFloat(i.monto||0);
+  });
+  const ingVals=Object.values(ingPorMes);
+  const ingProm=ingVals.length?Math.round(ingVals.reduce((a,b)=>a+b,0)/ingVals.length):0;
+
+  // Cuotas futuras por mes
+  const cuotasPorMes={};
+  allG.filter(g=>{
+    const ca=parseInt(g.cuota_actual||0), ct=parseInt(g.total_cuotas||0);
+    return ca>0&&ct>0&&ca<ct;
+  }).forEach(g=>{
+    const ca=parseInt(g.cuota_actual||0),ct=parseInt(g.total_cuotas||0);
+    const monto=Math.abs(parseFloat(g.monto)||0);
+    const p=String(g.fecha||'').split('/');
+    if(p.length<3) return;
+    const mesBase=new Date(parseInt(p[2]),parseInt(p[1])-1,1);
+    for(let n=ca+1;n<=ct;n++){
+      const d=new Date(mesBase.getFullYear(),mesBase.getMonth()+(n-ca),1);
+      const k=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+      cuotasPorMes[k]=(cuotasPorMes[k]||0)+monto;
+    }
+  });
+
+  let html='';
+  for(let i=1;i<=12;i++){
+    const d=new Date(now.getFullYear(),now.getMonth()+i,1);
+    const mm=String(d.getMonth()+1).padStart(2,'0');
+    const k=d.getFullYear()+'-'+mm;
+    const ing=ingPorMes[k]||ingProm;
+    const gastoCuotas=cuotasPorMes[k]||0;
+    const gastoEvs=eventosGastos.filter(e=>{
+      const em=e.anio?e.anio===d.getFullYear()&&e.mes===d.getMonth()+1:e.mes===d.getMonth()+1;
+      return em;
+    }).reduce((s,e)=>s+e.monto,0);
+    const ingEvs=eventosIngresos.filter(e=>{
+      const em=e.anio?e.anio===d.getFullYear()&&e.mes===d.getMonth()+1:e.mes===d.getMonth()+1;
+      return em;
+    }).reduce((s,e)=>s+e.monto,0);
+    const totalIng=ing+ingEvs;
+    const totalGas=gastoCuotas+gastoEvs;
+    const bal=totalIng-totalGas;
+    const balColor=bal>=0?'var(--green)':'var(--red)';
+    const isFirst=i===1;
+    html+=`<div style="background:var(--bg3);border:1px solid ${isFirst?'var(--accent)':'var(--border)'};border-radius:var(--r);padding:10px 8px;text-align:center">
+      <div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:4px">${MESES[d.getMonth()]} ${d.getFullYear()}</div>
+      <div style="font-size:13px;font-weight:700;color:${balColor}">${bal>=0?'+':''}$${Math.round(Math.abs(bal)/1000)}k</div>
+      <div style="font-size:9px;color:var(--text3);margin-top:2px">↑$${Math.round(totalIng/1000)}k ↓$${Math.round(totalGas/1000)}k</div>
+    </div>`;
+  }
+  container.innerHTML=html;
+}
+
 function renderCompromisosFuturos(){
   const allG = (GASTOS_ALL && GASTOS_ALL.length) ? GASTOS_ALL : GASTOS_CACHE;
   const now = new Date();
