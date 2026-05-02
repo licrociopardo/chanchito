@@ -1333,7 +1333,12 @@ let PRESUP_BASE = [];
 
 let eventosIngresos = [];
 let eventosGastos = [];
-let eventosEliminados = new Set(); // IDs de Sheets eliminados de proyección
+// IDs eliminados de proyección — persiste en localStorage
+let eventosEliminados = new Set();
+try {
+  const saved = localStorage.getItem('chanchito_eliminados');
+  if(saved) JSON.parse(saved).forEach(id => eventosEliminados.add(id));
+} catch(e) {}
 
 let charts = {};
 const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
@@ -1926,7 +1931,18 @@ function updateDashboardMetrics(){
         return ey===d.getFullYear()&&e.mes===d.getMonth()+1;
       }).reduce((s,e)=>s+e.monto,0);
       const cuotasGMes = isFuture ? (cuotasPorMes[kG]||0) : 0;
-      const gMes = isPastOrNow ? gMesReal : cuotasGMes+evGMes;
+      // Para mes actual: real + cuotas que caen ese mes
+      // Para pasado: solo real
+      // Para futuro: cuotas + eventos proyectados
+      const isCurrentMonth = mesNumD === mesNumActual;
+      let gMes;
+      if(isCurrentMonth){
+        gMes = gMesReal + (cuotasPorMes[kG]||0) + evGMes;
+      } else if(isPastOrNow){
+        gMes = gMesReal;
+      } else {
+        gMes = cuotasGMes + evGMes;
+      }
       gastData.push(gMes);
 
       // Ingresos: real si existe, promedio+eventos si es futuro
@@ -1939,8 +1955,8 @@ function updateDashboardMetrics(){
         : (ingPorMes[kG]||0);
       ingData.push(iMes);
 
-      // Cuotas futuras (para la barra naranja separada)
-      cuotasFutData.push(isFuture ? (cuotasPorMes[kG]||0) : 0);
+      // Cuotas futuras (para la barra naranja) — incluir mes actual también
+      cuotasFutData.push((isFuture || isCurrentMonth) ? (cuotasPorMes[kG]||0) : 0);
     }
 
     charts.ivg.data.labels = labels12;
@@ -2449,6 +2465,7 @@ async function delEvento(tipo,i){
       INGRESOS_ALL = (INGRESOS_ALL||[]).filter(x=>x.id!==ev.sheetsId);
       INGRESOS_CACHE = INGRESOS_CACHE.filter(x=>x.id!==ev.sheetsId);
       eventosEliminados.add(ev.sheetsId);
+      try{ localStorage.setItem('chanchito_eliminados', JSON.stringify([...eventosEliminados])); }catch(e){}
     }
     eventosIngresos.splice(i,1);
   } else {
@@ -2458,6 +2475,7 @@ async function delEvento(tipo,i){
       GASTOS_ALL = (GASTOS_ALL||[]).filter(x=>x.id!==ev.sheetsId);
       GASTOS_CACHE = GASTOS_CACHE.filter(x=>x.id!==ev.sheetsId);
       eventosEliminados.add(ev.sheetsId);
+      try{ localStorage.setItem('chanchito_eliminados', JSON.stringify([...eventosEliminados])); }catch(e){}
     }
     eventosGastos.splice(i,1);
   }
@@ -2929,7 +2947,7 @@ function initCharts(){
       labels:['Nov','Dic','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct'],
       datasets:[
         {label:'Ingresos',data:[0,0,0,0,0,0,0,0,0,0,0,0],backgroundColor:'rgba(26,111,181,.5)',borderRadius:5,borderSkipped:false},
-        {label:'Gastos reales',data:[0,0,0,0,0,0,0,0,0,0,0,0],backgroundColor:'rgba(214,58,58,.45)',borderRadius:5,borderSkipped:false},
+        {label:'Gastos',data:[0,0,0,0,0,0,0,0,0,0,0,0],backgroundColor:'rgba(214,58,58,.45)',borderRadius:5,borderSkipped:false},
         {label:'Cuotas futuras',data:[0,0,0,0,0,0,0,0,0,0,0,0],backgroundColor:'rgba(232,168,56,.55)',borderRadius:5,borderSkipped:false,borderDash:[]}
       ]
     },options:dflt
