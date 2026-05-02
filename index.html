@@ -1333,6 +1333,7 @@ let PRESUP_BASE = [];
 
 let eventosIngresos = [];
 let eventosGastos = [];
+let eventosEliminados = new Set(); // IDs de Sheets eliminados de proyección
 
 let charts = {};
 const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
@@ -1696,16 +1697,22 @@ function onMesSelChange(){
 }
 
 function fillMesSel(){
-  // Construir lista de meses únicos desde GASTOS_CACHE e INGRESOS_CACHE
+  // Construir lista de meses únicos desde GASTOS_ALL (historial completo)
   const mesesSet = new Set();
-  GASTOS_CACHE.forEach(g=>{
+  const allGFill = (GASTOS_ALL && GASTOS_ALL.length) ? GASTOS_ALL : GASTOS_CACHE;
+  allGFill.forEach(g=>{
     const p = String(g.fecha||'').split('/');
     if(p.length===3) mesesSet.add(p[2]+'-'+p[1].padStart(2,'0'));
   });
-  INGRESOS_CACHE.forEach(i=>{
+  const ingSrcFill = (INGRESOS_ALL && INGRESOS_ALL.length) ? INGRESOS_ALL : INGRESOS_CACHE;
+  ingSrcFill.forEach(i=>{
     const p = String(i.fecha||'').split('/');
     if(p.length===3) mesesSet.add(p[2]+'-'+p[1].padStart(2,'0'));
   });
+  // Siempre incluir el mes actual aunque no tenga datos aún
+  const nowFill = new Date();
+  const keyNow = nowFill.getFullYear()+'-'+String(nowFill.getMonth()+1).padStart(2,'0');
+  mesesSet.add(keyNow);
   // Ordenar descendente
   const meses = [...mesesSet].sort((a,b)=>b.localeCompare(a));
   const MESES_NOM = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -1879,6 +1886,7 @@ function updateDashboardMetrics(){
     const ingSrc = (INGRESOS_ALL && INGRESOS_ALL.length) ? INGRESOS_ALL : INGRESOS_CACHE;
     const ingPorMes={};
     ingSrc.forEach(i=>{
+      if(i.id && eventosEliminados.has(i.id)) return; // excluir eliminados
       const p=String(i.fecha||'').split('/');
       if(p.length<3) return;
       const k=p[2]+'-'+p[1].padStart(2,'0');
@@ -1900,13 +1908,25 @@ function updateDashboardMetrics(){
       labels12.push(MESES[d.getMonth()]+(isNow?' ◆':isFuture?' →':''));
 
       // Gastos reales (pasado/actual) o cuotas+eventos (futuro)
-      const gMesReal = allG.filter(g=>{const p=String(g.fecha||'').split('/');return p.length>=3&&p[2]+'-'+p[1].padStart(2,'0')===kG;}).reduce((s,g)=>s+montoPropio(g),0);
-      // Eventos de gastos futuros para este mes
+      // "Real" = mes <= mes actual del sistema (no proyectados futuros)
+      const mesNumActual = now.getFullYear()*12 + now.getMonth();
+      const mesNumD = d.getFullYear()*12 + d.getMonth();
+      const isPastOrNow = mesNumD <= mesNumActual;
+      const gMesReal = isPastOrNow
+        ? allG.filter(g=>{
+            const p=String(g.fecha||'').split('/');
+            if(p.length<3) return false;
+            if(p[2]+'-'+p[1].padStart(2,'0')!==kG) return false;
+            // Excluir gastos marcados como "Proyectado" (cargados desde Proyección)
+            return g.medio!=='Proyectado' && String(g.notas||'').indexOf('Proyección')===-1;
+          }).reduce((s,g)=>s+montoPropio(g),0)
+        : 0;
       const evGMes = eventosGastos.filter(e=>{
-        const ey=e.anio||now.getFullYear(); const em=e.mes;
-        return ey===d.getFullYear()&&em===d.getMonth()+1;
+        const ey=e.anio||now.getFullYear();
+        return ey===d.getFullYear()&&e.mes===d.getMonth()+1;
       }).reduce((s,e)=>s+e.monto,0);
-      const gMes = isFuture ? (cuotasPorMes[kG]||0)+evGMes : gMesReal;
+      const cuotasGMes = isFuture ? (cuotasPorMes[kG]||0) : 0;
+      const gMes = isPastOrNow ? gMesReal : cuotasGMes+evGMes;
       gastData.push(gMes);
 
       // Ingresos: real si existe, promedio+eventos si es futuro
@@ -2228,6 +2248,8 @@ function renderProj(){
   const allGProj=(GASTOS_ALL&&GASTOS_ALL.length)?GASTOS_ALL:GASTOS_CACHE;
   const gastosPorMes={};
   allGProj.forEach(g=>{
+    // Excluir gastos proyectados que fueron eliminados
+    if(g.id && eventosEliminados.has(g.id)) return;
     const p=String(g.fecha||'').split('/');
     if(p.length<3)return;
     const k=p[2]+'-'+p[1].padStart(2,'0');
@@ -2239,6 +2261,8 @@ function renderProj(){
   const ingSrcProj=(INGRESOS_ALL&&INGRESOS_ALL.length)?INGRESOS_ALL:INGRESOS_CACHE;
   const ingPorMes={};
   ingSrcProj.forEach(i=>{
+    // Excluir ingresos proyectados que fueron eliminados de la lista
+    if(i.id && eventosEliminados.has(i.id)) return;
     const p=String(i.fecha||'').split('/');
     if(p.length<3)return;
     const k=p[2]+'-'+p[1].padStart(2,'0');
@@ -2424,6 +2448,7 @@ async function delEvento(tipo,i){
       try{ await sheetsWrite('delIngreso',{id:ev.sheetsId}); }catch(e){}
       INGRESOS_ALL = (INGRESOS_ALL||[]).filter(x=>x.id!==ev.sheetsId);
       INGRESOS_CACHE = INGRESOS_CACHE.filter(x=>x.id!==ev.sheetsId);
+      eventosEliminados.add(ev.sheetsId);
     }
     eventosIngresos.splice(i,1);
   } else {
@@ -2432,6 +2457,7 @@ async function delEvento(tipo,i){
       try{ await sheetsWrite('delGasto',{id:ev.sheetsId}); }catch(e){}
       GASTOS_ALL = (GASTOS_ALL||[]).filter(x=>x.id!==ev.sheetsId);
       GASTOS_CACHE = GASTOS_CACHE.filter(x=>x.id!==ev.sheetsId);
+      eventosEliminados.add(ev.sheetsId);
     }
     eventosGastos.splice(i,1);
   }
