@@ -1464,8 +1464,8 @@ async function loadFromSheets(silent=false){
 
     // Gastos
     if(respG.ok){
-      // GASTOS_ALL guarda todos sin filtro de mes (para cuotas, proyecciones, etc.)
-      GASTOS_ALL = respG.data.map(r=>{
+      // GASTOS_ALL — filtrar los que el usuario eliminó de Proyección
+      GASTOS_ALL = respG.data.filter(r=>!r.id||!eventosEliminados.has(r.id)).map(r=>{
         // 1. Intentar leer cuota_actual/total_cuotas de las columnas
         let ca = r.cuota_actual||'';
         let ct = r.total_cuotas||'';
@@ -1515,9 +1515,11 @@ async function loadFromSheets(silent=false){
 
     // Ingresos del mes seleccionado
     if(respI.ok){ INGRESOS_CACHE = respI.data; }
-    // Todos los ingresos (sin filtro de mes, para el gráfico histórico)
-    if(respIAll&&respIAll.ok){ INGRESOS_ALL = respIAll.data; }
-    else { INGRESOS_ALL = INGRESOS_CACHE; } // fallback
+    // Todos los ingresos — filtrar los que el usuario eliminó de Proyección
+    if(respIAll&&respIAll.ok){
+      INGRESOS_ALL = respIAll.data.filter(i=>!i.id||!eventosEliminados.has(i.id));
+    }
+    else { INGRESOS_ALL = INGRESOS_CACHE.filter(i=>!i.id||!eventosEliminados.has(i.id)); }
 
     // Categorías
     if(respCat.ok && respCat.data.length){
