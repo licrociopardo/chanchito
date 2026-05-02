@@ -1899,18 +1899,27 @@ function updateDashboardMetrics(){
       // Label: mes abreviado, marcar el actual y futuros
       labels12.push(MESES[d.getMonth()]+(isNow?' ◆':isFuture?' →':''));
 
-      // Gastos reales (solo pasado y mes actual)
-      const gMes = isFuture ? 0 :
-        allG.filter(g=>{const p=String(g.fecha||'').split('/');return p.length>=3&&p[2]+'-'+p[1].padStart(2,'0')===kG;}).reduce((s,g)=>s+montoPropio(g),0);
+      // Gastos reales (pasado/actual) o cuotas+eventos (futuro)
+      const gMesReal = allG.filter(g=>{const p=String(g.fecha||'').split('/');return p.length>=3&&p[2]+'-'+p[1].padStart(2,'0')===kG;}).reduce((s,g)=>s+montoPropio(g),0);
+      // Eventos de gastos futuros para este mes
+      const evGMes = eventosGastos.filter(e=>{
+        const ey=e.anio||now.getFullYear(); const em=e.mes;
+        return ey===d.getFullYear()&&em===d.getMonth()+1;
+      }).reduce((s,e)=>s+e.monto,0);
+      const gMes = isFuture ? (cuotasPorMes[kG]||0)+evGMes : gMesReal;
       gastData.push(gMes);
 
-      // Ingresos: real si existe en el historial, promedio si es futuro
+      // Ingresos: real si existe, promedio+eventos si es futuro
+      const evIMes = eventosIngresos.filter(e=>{
+        const ey=e.anio||now.getFullYear(); const em=e.mes;
+        return ey===d.getFullYear()&&em===d.getMonth()+1;
+      }).reduce((s,e)=>s+e.monto,0);
       const iMes = isFuture
-        ? (ingPorMes[kG] || ingPromedio)  // futuro: usar real si ya cargó, sino promedio
-        : (ingPorMes[kG] || 0);           // pasado/actual: siempre del historial real
+        ? (ingPorMes[kG]||ingPromedio)+evIMes
+        : (ingPorMes[kG]||0);
       ingData.push(iMes);
 
-      // Cuotas futuras comprometidas
+      // Cuotas futuras (para la barra naranja separada)
       cuotasFutData.push(isFuture ? (cuotasPorMes[kG]||0) : 0);
     }
 
@@ -2271,9 +2280,9 @@ function renderProj(){
     return `<div class="proj-m ${isHoy?'hoy':''}">
       <div class="proj-m-nm">${projLabels[i]}</div>
       <div style="font-size:10px;color:var(--text3);margin-bottom:1px">Gasto</div>
-      <div class="proj-m-v" style="color:${gColor}">$${(v/1000).toFixed(0)}k</div>
-      ${ing>0?`<div style="font-size:10px;color:var(--text3);margin-top:4px">Ingreso</div><div style="font-size:12px;font-weight:700;color:var(--blue)">$${(ing/1000).toFixed(0)}k</div>`:''}
-      ${ing>0?`<div style="font-size:10px;color:var(--text3);margin-top:4px">Balance</div><div style="font-size:12px;font-weight:700;color:${balColor}">${bal>=0?'+':''}$${(bal/1000).toFixed(0)}k</div>`:''}
+      <div class="proj-m-v" style="color:${gColor};font-size:12px">${fmtM(v)}</div>
+      ${ing>0?`<div style="font-size:10px;color:var(--text3);margin-top:4px">Ingreso</div><div style="font-size:12px;font-weight:700;color:var(--blue)">${fmtM(ing)}</div>`:''}
+      ${ing>0?`<div style="font-size:10px;color:var(--text3);margin-top:4px">Balance</div><div style="font-size:12px;font-weight:700;color:${balColor}">${bal>=0?'+':''}${fmtM(Math.abs(bal))}</div>`:''}
       ${hasEv?`<div class="proj-m-tag" style="margin-top:4px">📌 evento</div>`:''}
       <div class="proj-m-bar" style="margin-top:6px"><div class="proj-m-fill" style="width:${pct}%;background:${gColor}"></div></div>
     </div>`;
@@ -2366,7 +2375,7 @@ async function addEvento(tipo){
       }
     }catch(e){ toast('✓ Evento en proyección (sin Sheets: '+e.message+')','warn'); }
 
-    eventosIngresos.push({desc,monto,mes,anio,tipo:t,icon:'💰'});
+    eventosIngresos.push({desc,monto,mes,anio,tipo:t,icon:'💰',sheetsId:resp?.id||null});
     document.getElementById('ei-desc').value='';
     document.getElementById('ei-monto').value='';
     hideEvento('ingreso');
@@ -2399,7 +2408,7 @@ async function addEvento(tipo){
     }catch(e){ toast('✓ Evento en proyección (sin Sheets: '+e.message+')','warn'); }
 
     const icons={Viaje:'✈️',Ocio:'🎭',Regalo:'🎁',Salud:'💊',Otro:'📦'};
-    eventosGastos.push({desc,monto,mes,anio,cat,icon:icons[cat]||'📦'});
+    eventosGastos.push({desc,monto,mes,anio,cat,icon:icons[cat]||'📦',sheetsId:(resp?.ids||[])[0]||null});
     document.getElementById('eg-desc').value='';
     document.getElementById('eg-monto').value='';
     hideEvento('gasto');
@@ -2407,11 +2416,28 @@ async function addEvento(tipo){
   renderProj();
   updateDashboardMetrics();
 }
-function delEvento(tipo,i){
-  if(tipo==='ingreso')eventosIngresos.splice(i,1);
-  else eventosGastos.splice(i,1);
+async function delEvento(tipo,i){
+  if(tipo==='ingreso'){
+    const ev = eventosIngresos[i];
+    // Si tiene id de Sheets, eliminarlo también de INGRESOS_ALL e INGRESOS_CACHE
+    if(ev && ev.sheetsId){
+      try{ await sheetsWrite('delIngreso',{id:ev.sheetsId}); }catch(e){}
+      INGRESOS_ALL = (INGRESOS_ALL||[]).filter(x=>x.id!==ev.sheetsId);
+      INGRESOS_CACHE = INGRESOS_CACHE.filter(x=>x.id!==ev.sheetsId);
+    }
+    eventosIngresos.splice(i,1);
+  } else {
+    const ev = eventosGastos[i];
+    if(ev && ev.sheetsId){
+      try{ await sheetsWrite('delGasto',{id:ev.sheetsId}); }catch(e){}
+      GASTOS_ALL = (GASTOS_ALL||[]).filter(x=>x.id!==ev.sheetsId);
+      GASTOS_CACHE = GASTOS_CACHE.filter(x=>x.id!==ev.sheetsId);
+    }
+    eventosGastos.splice(i,1);
+  }
   renderEventos();
   renderProj();
+  updateDashboardMetrics();
 }
 
 // ══════ EDITAR / ELIMINAR INGRESOS ══════
@@ -3755,6 +3781,11 @@ function cambiarContrasena(){
 // Cargar contraseña guardada al iniciar si existe
 // Login directo sin localStorage
 
+
+// Formatea montos: $2.000.000 en lugar de $2000k
+function fmtM(v){
+  return '$'+Math.round(v).toLocaleString('es-AR');
+}
 // ══════ COMPROMISOS FUTUROS POR CUOTAS ══════
 
 // ══════ BALANCE PROYECTADO DASHBOARD ══════
@@ -3802,12 +3833,12 @@ function renderDashBalanceProj(){
     const ing=ingPorMes[k]||ingProm;
     const gastoCuotas=cuotasPorMes[k]||0;
     const gastoEvs=eventosGastos.filter(e=>{
-      const em=e.anio?e.anio===d.getFullYear()&&e.mes===d.getMonth()+1:e.mes===d.getMonth()+1;
-      return em;
+      const ey=e.anio||now.getFullYear();
+      return ey===d.getFullYear()&&e.mes===d.getMonth()+1;
     }).reduce((s,e)=>s+e.monto,0);
     const ingEvs=eventosIngresos.filter(e=>{
-      const em=e.anio?e.anio===d.getFullYear()&&e.mes===d.getMonth()+1:e.mes===d.getMonth()+1;
-      return em;
+      const ey=e.anio||now.getFullYear();
+      return ey===d.getFullYear()&&e.mes===d.getMonth()+1;
     }).reduce((s,e)=>s+e.monto,0);
     const totalIng=ing+ingEvs;
     const totalGas=gastoCuotas+gastoEvs;
