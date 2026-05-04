@@ -3974,6 +3974,19 @@ function renderDashBalanceProj(){
   const ingVals=Object.entries(ingPorMes).filter(([k])=>k<keyNowBal).sort((a,b)=>a[0]>b[0]?-1:1).slice(0,3).map(x=>x[1]);
   const ingProm=ingVals.length?Math.round(ingVals.reduce((a,b)=>a+b,0)/ingVals.length):0;
 
+  // Promedio de gastos reales (últimos 3 meses completos)
+  const gastPorMes={};
+  allG.forEach(g=>{
+    if(g.id && eventosEliminados.has(g.id)) return;
+    if(String(g.notas||'').includes('Proyeccion')||g.medio==='Proyectado') return;
+    const p=String(g.fecha||'').split('/');
+    if(p.length<3) return;
+    const k=p[2]+'-'+p[1].padStart(2,'0');
+    gastPorMes[k]=(gastPorMes[k]||0)+montoPropio(g);
+  });
+  const gastVals=Object.entries(gastPorMes).filter(([k])=>k<keyNowBal).sort((a,b)=>a[0]>b[0]?-1:1).slice(0,3).map(x=>x[1]);
+  const gastProm=gastVals.length?Math.round(gastVals.reduce((a,b)=>a+b,0)/gastVals.length):0;
+
   // Cuotas futuras por mes
   const cuotasPorMes={};
   allG.filter(g=>{
@@ -4008,7 +4021,7 @@ function renderDashBalanceProj(){
       return ey===d.getFullYear()&&e.mes===d.getMonth()+1;
     }).reduce((s,e)=>s+e.monto,0);
     const totalIng=ing+ingEvs;
-    const totalGas=gastoCuotas+gastoEvs;
+    const totalGas=gastProm+gastoCuotas+gastoEvs;
     const bal=totalIng-totalGas;
     const balColor=bal>=0?'var(--green)':'var(--red)';
     const isFirst=i===1;
