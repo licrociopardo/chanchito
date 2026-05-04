@@ -1790,7 +1790,8 @@ function updateDashboardMetrics(){
   const pctGastos = totalIngresos>0 ? Math.round(totalGastos/totalIngresos*100) : (totalGastos>0?100:0);
 
   // Cuotas: monto mensual comprometido (solo cuotas con pagos futuros reales)
-  const mesActualDash = new Date(now.getFullYear(), now.getMonth(), 1);
+  const _nowDash = new Date();
+  const mesActualDash = new Date(_nowDash.getFullYear(), _nowDash.getMonth(), 1);
   const cuotasGrupos = {};
   allGastosForCuotas.forEach(g=>{
     const ca=parseInt(g.raw?.cuota_actual||g.cuota_actual||0);
