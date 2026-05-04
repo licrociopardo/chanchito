@@ -1789,22 +1789,24 @@ function updateDashboardMetrics(){
   // ── Pct gastos/ingresos
   const pctGastos = totalIngresos>0 ? Math.round(totalGastos/totalIngresos*100) : (totalGastos>0?100:0);
 
-  // Cuotas: monto mensual comprometido (cuota del mes siguiente, una por grupo)
-  // Buscar cuotas distintas — una línea por grupo de cuotas pendientes
+  // Cuotas: monto mensual comprometido (solo cuotas con pagos futuros reales)
+  const mesActualDash = new Date(now.getFullYear(), now.getMonth(), 1);
   const cuotasGrupos = {};
   allGastosForCuotas.forEach(g=>{
     const ca=parseInt(g.raw?.cuota_actual||g.cuota_actual||0);
     const ct=parseInt(g.raw?.total_cuotas||g.total_cuotas||0);
-    if(!ca||!ct) return;
+    if(!ca||!ct||ca>=ct) return;
+    const p=String(g.fecha||'').split('/');
+    if(p.length<3) return;
+    const mesBase=new Date(parseInt(p[2]),parseInt(p[1])-1,1);
+    const fUltima=new Date(mesBase.getFullYear(),mesBase.getMonth()+(ct-ca),1);
+    if(fUltima < mesActualDash) return; // ya vencio, ignorar
     const nm=(g.desc||'').replace(/\s*\(cuota.*\)/i,'').trim()||g.id;
-    if(!cuotasGrupos[nm]){
-      cuotasGrupos[nm]={monto:g.monto, ca, ct};
-    } else if(ca > cuotasGrupos[nm].ca){
+    if(!cuotasGrupos[nm]||ca>cuotasGrupos[nm].ca){
       cuotasGrupos[nm]={monto:g.monto, ca, ct};
     }
   });
-  // Solo contar grupos que tienen cuotas restantes
-  const cuotasMensuales = Object.values(cuotasGrupos).filter(g=>g.ca<g.ct).reduce((s,g)=>s+g.monto,0);
+  const cuotasMensuales = Object.values(cuotasGrupos).reduce((s,g)=>s+g.monto,0);
 
   // Balance: si no hay ingresos y hay gastos → déficit
   const balanceDisplay = balance < 0 || (totalGastos > 0 && totalIngresos === 0) ? -Math.abs(totalGastos) : balance;
