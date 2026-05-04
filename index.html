@@ -2266,8 +2266,16 @@ function renderProj(){
   const allGProj=(GASTOS_ALL&&GASTOS_ALL.length)?GASTOS_ALL:GASTOS_CACHE;
   const gastosPorMes={};
   allGProj.forEach(g=>{
-    // Excluir gastos proyectados que fueron eliminados
     if(g.id && eventosEliminados.has(g.id)) return;
+    const esProyectadoG = String(g.notas||'').includes('Proyeccion') || g.medio==='Proyectado';
+    if(esProyectadoG){
+      const pad=n=>String(n).padStart(2,'0');
+      const enListaG = eventosGastos.some(ev=>{
+        const f='01/'+pad(ev.mes)+'/'+ev.anio;
+        return (ev.sheetsId&&ev.sheetsId===g.id)||(g.desc===ev.desc&&g.fecha===f);
+      });
+      if(!enListaG) return;
+    }
     const p=String(g.fecha||'').split('/');
     if(p.length<3)return;
     const k=p[2]+'-'+p[1].padStart(2,'0');
@@ -2279,8 +2287,18 @@ function renderProj(){
   const ingSrcProj=(INGRESOS_ALL&&INGRESOS_ALL.length)?INGRESOS_ALL:INGRESOS_CACHE;
   const ingPorMes={};
   ingSrcProj.forEach(i=>{
-    // Excluir ingresos proyectados que fueron eliminados de la lista
+    // Excluir eliminados y excluir proyectados que no están en eventosIngresos activos
     if(i.id && eventosEliminados.has(i.id)) return;
+    const esProyectado = String(i.notas||'').includes('Proyeccion') || i.tipo==='Proyectado';
+    if(esProyectado){
+      // Solo incluir si sigue en la lista activa de eventosIngresos
+      const pad=n=>String(n).padStart(2,'0');
+      const enLista = eventosIngresos.some(ev=>{
+        const f='01/'+pad(ev.mes)+'/'+ev.anio;
+        return (ev.sheetsId&&ev.sheetsId===i.id)||(i.descripcion===ev.desc&&i.fecha===f);
+      });
+      if(!enLista) return;
+    }
     const p=String(i.fecha||'').split('/');
     if(p.length<3)return;
     const k=p[2]+'-'+p[1].padStart(2,'0');
@@ -2369,55 +2387,75 @@ function renderProj(){
 function renderEventos(){
   const listI=document.getElementById('eventos-ingresos');
   const listG=document.getElementById('eventos-gastos');
-  listI.innerHTML=eventosIngresos.length?eventosIngresos.map((e,i)=>`
-    <div class="evento"><div class="evento-icon">${e.icon||'💰'}</div>
-    <div class="evento-info"><div class="evento-nm">${e.desc}</div><div class="evento-fecha">${MESES[e.mes-1]} 2026 · ${e.tipo}</div></div>
-    <div class="evento-monto amt-pos">+$${e.monto.toLocaleString('es-AR')}</div>
-    <button class="evento-del" onclick="delEvento('ingreso',${i})">✕</button></div>`).join('')
-    :'<div class="empty" style="padding:14px"><div class="empty-icon">💸</div><div>Sin ingresos futuros cargados</div></div>';
-  listG.innerHTML=eventosGastos.length?eventosGastos.map((e,i)=>`
-    <div class="evento"><div class="evento-icon">${e.icon||'💸'}</div>
-    <div class="evento-info"><div class="evento-nm">${e.desc}</div><div class="evento-fecha">${MESES[e.mes-1]} 2026 · ${e.cat}</div></div>
-    <div class="evento-monto amt-neg">-$${e.monto.toLocaleString('es-AR')}</div>
-    <button class="evento-del" onclick="delEvento('gasto',${i})">✕</button></div>`).join('')
-    :'<div class="empty" style="padding:14px"><div class="empty-icon">🏖</div><div>Sin gastos futuros cargados</div></div>';
+  if(listI) listI.innerHTML=eventosIngresos.length ? eventosIngresos.map((e,i)=>`
+    <div class="evento">
+      <div class="evento-icon">${e.icon||'💰'}</div>
+      <div class="evento-info">
+        <div class="evento-nm">${e.desc}</div>
+        <div class="evento-fecha">${MESES[(e.mes||1)-1]} ${e.anio||''} · ${e.tipo||''}</div>
+      </div>
+      <div class="evento-monto amt-pos">+$${(e.monto||0).toLocaleString('es-AR')}</div>
+      <button class="evento-del" onclick="delEvento('ingreso',${i})">✕</button>
+    </div>`).join('')
+    : '<div class="empty" style="padding:14px"><div class="empty-icon">💸</div><div>Sin ingresos futuros cargados</div></div>';
+  if(listG) listG.innerHTML=eventosGastos.length ? eventosGastos.map((e,i)=>`
+    <div class="evento">
+      <div class="evento-icon">${e.icon||'💸'}</div>
+      <div class="evento-info">
+        <div class="evento-nm">${e.desc}</div>
+        <div class="evento-fecha">${MESES[(e.mes||1)-1]} ${e.anio||''} · ${e.cat||''}</div>
+      </div>
+      <div class="evento-monto amt-neg">-$${(e.monto||0).toLocaleString('es-AR')}</div>
+      <button class="evento-del" onclick="delEvento('gasto',${i})">✕</button>
+    </div>`).join('')
+    : '<div class="empty" style="padding:14px"><div class="empty-icon">🏖</div><div>Sin gastos futuros cargados</div></div>';
 }
 
 function showAddEvento(tipo){ document.getElementById('form-add-'+tipo).style.display='grid'; }
 function hideEvento(tipo){ document.getElementById('form-add-'+tipo).style.display='none'; }
+
 async function addEvento(tipo){
   const now = new Date();
   const anioActual = now.getFullYear();
+  const pad = n=>String(n).padStart(2,'0');
+  const btnGuardar = document.querySelector('#form-add-'+tipo+' button[onclick*="addEvento"]');
+  if(btnGuardar){ btnGuardar.disabled=true; btnGuardar.textContent='Guardando...'; }
 
   if(tipo==='ingreso'){
     const desc  = document.getElementById('ei-desc').value.trim();
     const monto = parseFloat(document.getElementById('ei-monto').value);
     const mes   = parseInt(document.getElementById('ei-mes').value);
-    const anio  = parseInt(document.getElementById('ei-anio')?.value || anioActual);
+    const anio  = parseInt(document.getElementById('ei-anio')?.value||anioActual);
     const t     = document.getElementById('ei-tipo').value;
-    if(!desc||!monto){toast('Completá descripción y monto','warn');return;}
+    if(!desc||!monto){
+      toast('Completá descripción y monto','warn');
+      if(btnGuardar){ btnGuardar.disabled=false; btnGuardar.textContent='Guardar'; }
+      return;
+    }
 
-    // Fecha: primer día del mes seleccionado
-    const pad = n=>String(n).padStart(2,'0');
     const fecha = '01/'+pad(mes)+'/'+anio;
+    let sheetsId = null;
 
-    // Guardar en Sheets como ingreso real
     try{
       const resp = await sheetsWrite('addIngreso',{
         fecha, descripcion:desc, categoria:t,
         monto, persona:'Rocío', tipo:'Proyectado',
-        recurrente:'No', notas:'Cargado desde Proyección'
+        recurrente:'No', notas:'Proyeccion'
       });
       if(resp&&resp.ok){
-        const nuevoIng = {id:resp.id||'pi_'+Date.now(), fecha, descripcion:desc,
-          categoria:t, monto, persona:'Rocío', tipo:'Proyectado', recurrente:'No', notas:'Cargado desde Proyección'};
-        INGRESOS_CACHE.unshift(nuevoIng);
+        sheetsId = resp.id || null;
+        const nuevoIng = {
+          id: sheetsId||('pi_'+Date.now()),
+          fecha, descripcion:desc, categoria:t,
+          monto, persona:'Rocío', tipo:'Proyectado',
+          recurrente:'No', notas:'Proyeccion'
+        };
         if(INGRESOS_ALL) INGRESOS_ALL.unshift(nuevoIng);
-        toast('✓ Ingreso futuro guardado en Sheets e Ingresos','success');
+        INGRESOS_CACHE.unshift(nuevoIng);
       }
-    }catch(e){ toast('✓ Evento en proyección (sin Sheets: '+e.message+')','warn'); }
+    }catch(e){ console.warn('addIngreso error:',e); }
 
-    eventosIngresos.push({desc,monto,mes,anio,tipo:t,icon:'💰',sheetsId:resp?.id||null});
+    eventosIngresos.push({desc,monto,mes,anio,tipo:t,icon:'💰',sheetsId});
     document.getElementById('ei-desc').value='';
     document.getElementById('ei-monto').value='';
     hideEvento('ingreso');
@@ -2426,58 +2464,100 @@ async function addEvento(tipo){
     const desc  = document.getElementById('eg-desc').value.trim();
     const monto = parseFloat(document.getElementById('eg-monto').value);
     const mes   = parseInt(document.getElementById('eg-mes').value);
-    const anio  = parseInt(document.getElementById('eg-anio')?.value || anioActual);
+    const anio  = parseInt(document.getElementById('eg-anio')?.value||anioActual);
     const cat   = document.getElementById('eg-cat').value;
-    if(!desc||!monto){toast('Completá descripción y monto','warn');return;}
+    if(!desc||!monto){
+      toast('Completá descripción y monto','warn');
+      if(btnGuardar){ btnGuardar.disabled=false; btnGuardar.textContent='Guardar'; }
+      return;
+    }
 
-    const pad = n=>String(n).padStart(2,'0');
     const fecha = '01/'+pad(mes)+'/'+anio;
+    let sheetsId = null;
+    const icons={Viaje:'✈️',Ocio:'🎭',Regalo:'🎁',Salud:'💊',Otro:'📦'};
 
-    // Guardar en Sheets como gasto real
     try{
       const resp = await sheetsWrite('addGastos',{
         filas:[{fecha, descripcion:desc, categoria:cat,
           monto, medio_pago:'Proyectado', asignado_a:'Rocío',
-          cuota_actual:'', total_cuotas:'', notas:'Cargado desde Proyección'}]
+          cuota_actual:'', total_cuotas:'', notas:'Proyeccion'}]
       });
       if(resp&&resp.ok){
-        const nuevoG = {id:(resp.ids||[])[0]||'pg_'+Date.now(), fecha, desc, cat,
-          medio:'Proyectado', asig:'Rocío', cuotas:'—', cuota_actual:0, total_cuotas:0,
-          monto, notas:'Cargado desde Proyección'};
+        sheetsId = (resp.ids||[])[0]||null;
+        const nuevoG = {
+          id: sheetsId||('pg_'+Date.now()),
+          fecha, desc, cat, medio:'Proyectado',
+          asig:'Rocío', cuotas:'—', cuota_actual:0,
+          total_cuotas:0, monto, notas:'Proyeccion'
+        };
         if(GASTOS_ALL) GASTOS_ALL.unshift(nuevoG);
-        toast('✓ Gasto futuro guardado en Sheets y Gastos','success');
       }
-    }catch(e){ toast('✓ Evento en proyección (sin Sheets: '+e.message+')','warn'); }
+    }catch(e){ console.warn('addGasto error:',e); }
 
-    const icons={Viaje:'✈️',Ocio:'🎭',Regalo:'🎁',Salud:'💊',Otro:'📦'};
-    eventosGastos.push({desc,monto,mes,anio,cat,icon:icons[cat]||'📦',sheetsId:(resp?.ids||[])[0]||null});
+    eventosGastos.push({desc,monto,mes,anio,cat,icon:icons[cat]||'📦',sheetsId});
     document.getElementById('eg-desc').value='';
     document.getElementById('eg-monto').value='';
     hideEvento('gasto');
   }
+
+  if(btnGuardar){ btnGuardar.disabled=false; btnGuardar.textContent='Guardar'; }
+  toast('✓ Guardado','success');
+  renderEventos();
   renderProj();
   updateDashboardMetrics();
 }
+
 async function delEvento(tipo,i){
   if(tipo==='ingreso'){
     const ev = eventosIngresos[i];
-    // Si tiene id de Sheets, eliminarlo también de INGRESOS_ALL e INGRESOS_CACHE
-    if(ev && ev.sheetsId){
-      try{ await sheetsWrite('delIngreso',{id:ev.sheetsId}); }catch(e){}
-      INGRESOS_ALL = (INGRESOS_ALL||[]).filter(x=>x.id!==ev.sheetsId);
-      INGRESOS_CACHE = INGRESOS_CACHE.filter(x=>x.id!==ev.sheetsId);
-      eventosEliminados.add(ev.sheetsId);
-      try{ localStorage.setItem('chanchito_eliminados', JSON.stringify([...eventosEliminados])); }catch(e){}
+    if(ev){
+      // Eliminar de Sheets
+      if(ev.sheetsId){
+        try{ await sheetsWrite('delIngreso',{id:ev.sheetsId}); }catch(e){}
+      } else {
+        // Sin sheetsId: buscar por descripción+fecha en INGRESOS_ALL y eliminar
+        const pad=n=>String(n).padStart(2,'0');
+        const fechaBusc='01/'+pad(ev.mes)+'/'+ev.anio;
+        const encontrado = (INGRESOS_ALL||[]).find(x=>
+          x.descripcion===ev.desc && x.fecha===fechaBusc && Math.abs(parseFloat(x.monto)-ev.monto)<1
+        );
+        if(encontrado){
+          try{ await sheetsWrite('delIngreso',{id:encontrado.id}); }catch(e){}
+          ev.sheetsId = encontrado.id;
+        }
+      }
+      const sid = ev.sheetsId;
+      if(sid){
+        INGRESOS_ALL = (INGRESOS_ALL||[]).filter(x=>x.id!==sid);
+        INGRESOS_CACHE = INGRESOS_CACHE.filter(x=>x.id!==sid);
+        eventosEliminados.add(sid);
+        try{ localStorage.setItem('chanchito_eliminados',JSON.stringify([...eventosEliminados])); }catch(e){}
+      }
     }
     eventosIngresos.splice(i,1);
   } else {
     const ev = eventosGastos[i];
-    if(ev && ev.sheetsId){
-      try{ await sheetsWrite('delGasto',{id:ev.sheetsId}); }catch(e){}
-      GASTOS_ALL = (GASTOS_ALL||[]).filter(x=>x.id!==ev.sheetsId);
-      GASTOS_CACHE = GASTOS_CACHE.filter(x=>x.id!==ev.sheetsId);
-      eventosEliminados.add(ev.sheetsId);
-      try{ localStorage.setItem('chanchito_eliminados', JSON.stringify([...eventosEliminados])); }catch(e){}
+    if(ev){
+      if(ev.sheetsId){
+        try{ await sheetsWrite('delGasto',{id:ev.sheetsId}); }catch(e){}
+      } else {
+        const pad=n=>String(n).padStart(2,'0');
+        const fechaBusc='01/'+pad(ev.mes)+'/'+ev.anio;
+        const encontrado = (GASTOS_ALL||[]).find(x=>
+          x.desc===ev.desc && x.fecha===fechaBusc && Math.abs(parseFloat(x.monto)-ev.monto)<1
+        );
+        if(encontrado){
+          try{ await sheetsWrite('delGasto',{id:encontrado.id}); }catch(e){}
+          ev.sheetsId = encontrado.id;
+        }
+      }
+      const sid = ev.sheetsId;
+      if(sid){
+        GASTOS_ALL = (GASTOS_ALL||[]).filter(x=>x.id!==sid);
+        GASTOS_CACHE = GASTOS_CACHE.filter(x=>x.id!==sid);
+        eventosEliminados.add(sid);
+        try{ localStorage.setItem('chanchito_eliminados',JSON.stringify([...eventosEliminados])); }catch(e){}
+      }
     }
     eventosGastos.splice(i,1);
   }
@@ -3893,8 +3973,8 @@ function renderDashBalanceProj(){
     const isFirst=i===1;
     html+=`<div style="background:var(--bg3);border:1px solid ${isFirst?'var(--accent)':'var(--border)'};border-radius:var(--r);padding:10px 8px;text-align:center">
       <div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:4px">${MESES[d.getMonth()]} ${d.getFullYear()}</div>
-      <div style="font-size:13px;font-weight:700;color:${balColor}">${bal>=0?'+':''}$${Math.round(Math.abs(bal)/1000)}k</div>
-      <div style="font-size:9px;color:var(--text3);margin-top:2px">↑$${Math.round(totalIng/1000)}k ↓$${Math.round(totalGas/1000)}k</div>
+      <div style="font-size:12px;font-weight:700;color:${balColor}">${bal>=0?'+':''}${Math.round(Math.abs(bal)).toLocaleString('es-AR')}</div>
+      <div style="font-size:9px;color:var(--text3);margin-top:2px">↑$${Math.round(totalIng/1000).toLocaleString('es-AR')}k ↓$${Math.round(totalGas/1000).toLocaleString('es-AR')}k</div>
     </div>`;
   }
   container.innerHTML=html;
