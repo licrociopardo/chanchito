@@ -2282,7 +2282,8 @@ function renderProj(){
     const k=p[2]+'-'+p[1].padStart(2,'0');
     gastosPorMes[k]=(gastosPorMes[k]||0)+montoPropio(g);
   });
-  const mesesConDatos=Object.values(gastosPorMes);
+  // Últimos 3 meses con datos para el promedio de gastos
+  const mesesConDatos=Object.entries(gastosPorMes).sort((a,b)=>a[0]>b[0]?-1:1).slice(0,3).map(x=>x[1]);
   const promedioGasto=mesesConDatos.length?Math.round(mesesConDatos.reduce((a,b)=>a+b,0)/mesesConDatos.length):0;
   // Ingresos desde INGRESOS_ALL
   const ingSrcProj=(INGRESOS_ALL&&INGRESOS_ALL.length)?INGRESOS_ALL:INGRESOS_CACHE;
