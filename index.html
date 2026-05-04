@@ -1899,7 +1899,8 @@ function updateDashboardMetrics(){
       const k=p[2]+'-'+p[1].padStart(2,'0');
       ingPorMes[k]=(ingPorMes[k]||0)+parseFloat(i.monto||0);
     });
-    const ingVals=Object.values(ingPorMes);
+    // Últimos 3 meses con datos para el promedio
+    const ingVals=Object.entries(ingPorMes).sort((a,b)=>a[0]>b[0]?-1:1).slice(0,3).map(x=>x[1]);
     const ingPromedio=ingVals.length?Math.round(ingVals.reduce((a,b)=>a+b,0)/ingVals.length):0;
 
     // Construir 12 meses: -5 a +6 desde hoy
@@ -2304,8 +2305,9 @@ function renderProj(){
     const k=p[2]+'-'+p[1].padStart(2,'0');
     ingPorMes[k]=(ingPorMes[k]||0)+parseFloat(i.monto||0);
   });
-  const ingMeses=Object.values(ingPorMes);
-  const promedioIng=ingMeses.length?Math.round(ingMeses.reduce((a,b)=>a+b,0)/ingMeses.length):0;
+  // Usar solo los últimos 3 meses con datos para el promedio
+  const ingMesesSort = Object.entries(ingPorMes).sort((a,b)=>a[0]>b[0]?-1:1).slice(0,3).map(x=>x[1]);
+  const promedioIng = ingMesesSort.length ? Math.round(ingMesesSort.reduce((a,b)=>a+b,0)/ingMesesSort.length) : 0;
   // Construir n meses desde el mes seleccionado
   const projLabels=[],projGastos=[],projIng=[];
   for(let i=0;i<n;i++){
@@ -2578,22 +2580,47 @@ async function delIngresoUI(id){
 }
 
 function openEditIngreso(id){
-  const ing = INGRESOS_CACHE.find(x=>x.id===id);
+  const ing = (INGRESOS_ALL||INGRESOS_CACHE).find(x=>x.id===id) || INGRESOS_CACHE.find(x=>x.id===id);
   if(!ing){ toast('Ingreso no encontrado','warn'); return; }
-  const desc  = prompt('Descripción:', ing.descripcion||'');
-  if(desc===null) return;
-  const monto = prompt('Monto:', ing.monto||'');
-  if(monto===null) return;
-  const notas = prompt('Notas:', ing.notas||'');
-  sheetsWrite('editIngreso',{id,descripcion:desc,monto:parseFloat(monto)||0,notas:notas||''})
-    .then(r=>{
-      if(r.ok){
-        const idx=INGRESOS_CACHE.findIndex(x=>x.id===id);
-        if(idx>=0) INGRESOS_CACHE[idx]={...INGRESOS_CACHE[idx],descripcion:desc,monto:parseFloat(monto)||0,notas:notas||''};
-        updateDashboardMetrics();
-        toast('✓ Ingreso actualizado en Sheets','success');
-      }
-    }).catch(e=>toast('❌ '+e.message,'error'));
+  // Cargar datos en el modal
+  document.getElementById('ei-edit-id').value    = id;
+  document.getElementById('ei-edit-desc').value  = ing.descripcion||'';
+  document.getElementById('ei-edit-monto').value = ing.monto||'';
+  document.getElementById('ei-edit-cat').value   = ing.categoria||'Sueldo';
+  document.getElementById('ei-edit-tipo').value  = ing.tipo||'Fijo';
+  document.getElementById('ei-edit-notas').value = ing.notas||'';
+  // Fecha
+  if(ing.fecha){
+    const p = String(ing.fecha).split('/');
+    if(p.length===3) document.getElementById('ei-edit-fecha').value = p[2]+'-'+p[1].padStart(2,'0')+'-'+p[0].padStart(2,'0');
+  }
+  document.getElementById('modal-edit-ingreso').style.display='flex';
+}
+
+async function guardarEditIngreso(){
+  const id    = document.getElementById('ei-edit-id').value;
+  const desc  = document.getElementById('ei-edit-desc').value.trim();
+  const monto = parseFloat(document.getElementById('ei-edit-monto').value);
+  const fecha = document.getElementById('ei-edit-fecha').value;
+  const cat   = document.getElementById('ei-edit-cat').value;
+  const tipo  = document.getElementById('ei-edit-tipo').value;
+  const notas = document.getElementById('ei-edit-notas').value.trim();
+  if(!desc||!monto){ toast('Completá descripción y monto','warn'); return; }
+  const [y,m,d] = fecha.split('-');
+  const fechaFmt = d+'/'+m+'/'+y;
+  try{
+    const r = await sheetsWrite('editIngreso',{id,descripcion:desc,monto,fecha:fechaFmt,categoria:cat,tipo,notas});
+    if(r.ok){
+      const update = x=>({...x,descripcion:desc,monto,fecha:fechaFmt,categoria:cat,tipo,notas});
+      const i1=INGRESOS_CACHE.findIndex(x=>x.id===id);
+      if(i1>=0) INGRESOS_CACHE[i1]=update(INGRESOS_CACHE[i1]);
+      if(INGRESOS_ALL){const i2=INGRESOS_ALL.findIndex(x=>x.id===id);if(i2>=0)INGRESOS_ALL[i2]=update(INGRESOS_ALL[i2]);}
+      document.getElementById('modal-edit-ingreso').style.display='none';
+      renderGastos();
+      updateDashboardMetrics();
+      toast('✓ Ingreso actualizado en Sheets','success');
+    }
+  }catch(e){ toast('❌ '+e.message,'error'); }
 }
 
 // ══════ NUEVO GASTO ══════
@@ -3930,7 +3957,8 @@ function renderDashBalanceProj(){
     const k=p[2]+'-'+p[1].padStart(2,'0');
     ingPorMes[k]=(ingPorMes[k]||0)+parseFloat(i.monto||0);
   });
-  const ingVals=Object.values(ingPorMes);
+  // Últimos 3 meses con datos
+  const ingVals=Object.entries(ingPorMes).sort((a,b)=>a[0]>b[0]?-1:1).slice(0,3).map(x=>x[1]);
   const ingProm=ingVals.length?Math.round(ingVals.reduce((a,b)=>a+b,0)/ingVals.length):0;
 
   // Cuotas futuras por mes
@@ -4175,6 +4203,52 @@ async function guardarIngreso(){
 }
 
 </script>
+  <!-- ════ MODAL EDITAR INGRESO ════ -->
+  <div id="modal-edit-ingreso" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:600;align-items:center;justify-content:center">
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:28px;width:480px;max-width:95vw;box-shadow:0 20px 60px rgba(0,0,0,.15)">
+      <div style="font-size:15px;font-weight:700;margin-bottom:4px">✏️ Editar ingreso</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:18px">Los cambios se guardan en Sheets</div>
+      <input type="hidden" id="ei-edit-id">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div style="grid-column:1/-1"><label class="fl">Descripción</label>
+          <input class="fi" id="ei-edit-desc" placeholder="Ej. Honorarios Mayo...">
+        </div>
+        <div><label class="fl">Monto</label>
+          <input class="fi" id="ei-edit-monto" type="number" placeholder="0" min="0">
+        </div>
+        <div><label class="fl">Fecha</label>
+          <input class="fi" id="ei-edit-fecha" type="date">
+        </div>
+        <div><label class="fl">Categoría</label>
+          <select class="fs" id="ei-edit-cat">
+            <option value="Sueldo">Sueldo</option>
+            <option value="Freelance">Freelance</option>
+            <option value="Honorarios">Honorarios</option>
+            <option value="Alquiler">Alquiler</option>
+            <option value="Inversión">Inversión</option>
+            <option value="Proyectado">Proyectado</option>
+            <option value="Otro">Otro</option>
+          </select>
+        </div>
+        <div><label class="fl">Tipo</label>
+          <select class="fs" id="ei-edit-tipo">
+            <option value="Fijo">Fijo</option>
+            <option value="Variable">Variable</option>
+            <option value="Extra">Extra</option>
+            <option value="Proyectado">Proyectado</option>
+          </select>
+        </div>
+        <div style="grid-column:1/-1"><label class="fl">Notas</label>
+          <input class="fi" id="ei-edit-notas" placeholder="Notas adicionales...">
+        </div>
+      </div>
+      <div style="display:flex;gap:9px;margin-top:18px">
+        <button class="btn btn-primary" onclick="guardarEditIngreso()">💾 Guardar cambios</button>
+        <button class="btn btn-ghost" onclick="document.getElementById('modal-edit-ingreso').style.display='none'">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ════ MODAL NUEVO INGRESO ════ -->
   <div id="modal-ingreso" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:600;align-items:center;justify-content:center">
     <div style="background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:28px;width:460px;max-width:95vw;box-shadow:0 20px 60px rgba(0,0,0,.15)">
