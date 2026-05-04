@@ -1899,8 +1899,9 @@ function updateDashboardMetrics(){
       const k=p[2]+'-'+p[1].padStart(2,'0');
       ingPorMes[k]=(ingPorMes[k]||0)+parseFloat(i.monto||0);
     });
-    // Últimos 3 meses con datos para el promedio
-    const ingVals=Object.entries(ingPorMes).sort((a,b)=>a[0]>b[0]?-1:1).slice(0,3).map(x=>x[1]);
+    // Últimos 3 meses COMPLETOS para el promedio (excluir mes actual incompleto)
+    const keyNowDash = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+    const ingVals=Object.entries(ingPorMes).filter(([k])=>k<keyNowDash).sort((a,b)=>a[0]>b[0]?-1:1).slice(0,3).map(x=>x[1]);
     const ingPromedio=ingVals.length?Math.round(ingVals.reduce((a,b)=>a+b,0)/ingVals.length):0;
 
     // Construir 12 meses: -5 a +6 desde hoy
@@ -2282,8 +2283,14 @@ function renderProj(){
     const k=p[2]+'-'+p[1].padStart(2,'0');
     gastosPorMes[k]=(gastosPorMes[k]||0)+montoPropio(g);
   });
-  // Últimos 3 meses con datos para el promedio de gastos
-  const mesesConDatos=Object.entries(gastosPorMes).sort((a,b)=>a[0]>b[0]?-1:1).slice(0,3).map(x=>x[1]);
+  // Últimos 3 meses COMPLETOS (excluir el mes actual que está incompleto)
+  const now2 = new Date();
+  const keyActual2 = now2.getFullYear()+'-'+String(now2.getMonth()+1).padStart(2,'0');
+  const mesesConDatos=Object.entries(gastosPorMes)
+    .filter(([k])=>k<keyActual2)  // solo meses pasados completos
+    .sort((a,b)=>a[0]>b[0]?-1:1)
+    .slice(0,3)
+    .map(x=>x[1]);
   const promedioGasto=mesesConDatos.length?Math.round(mesesConDatos.reduce((a,b)=>a+b,0)/mesesConDatos.length):0;
   // Ingresos desde INGRESOS_ALL
   const ingSrcProj=(INGRESOS_ALL&&INGRESOS_ALL.length)?INGRESOS_ALL:INGRESOS_CACHE;
@@ -2306,8 +2313,12 @@ function renderProj(){
     const k=p[2]+'-'+p[1].padStart(2,'0');
     ingPorMes[k]=(ingPorMes[k]||0)+parseFloat(i.monto||0);
   });
-  // Usar solo los últimos 3 meses con datos para el promedio
-  const ingMesesSort = Object.entries(ingPorMes).sort((a,b)=>a[0]>b[0]?-1:1).slice(0,3).map(x=>x[1]);
+  // Últimos 3 meses COMPLETOS de ingresos (excluir mes actual incompleto)
+  const ingMesesSort = Object.entries(ingPorMes)
+    .filter(([k])=>k<keyActual2)
+    .sort((a,b)=>a[0]>b[0]?-1:1)
+    .slice(0,3)
+    .map(x=>x[1]);
   const promedioIng = ingMesesSort.length ? Math.round(ingMesesSort.reduce((a,b)=>a+b,0)/ingMesesSort.length) : 0;
   // Construir n meses desde el mes seleccionado
   const projLabels=[],projGastos=[],projIng=[];
@@ -2352,15 +2363,15 @@ function renderProj(){
   }).join('');
 
   // Cuotas
-  // Cuotas comprometidas desde GASTOS_CACHE — gastos con cuota_actual < total_cuotas
+  // Cuotas comprometidas desde GASTOS_ALL (historial completo)
+  const allGCuotas = (GASTOS_ALL && GASTOS_ALL.length) ? GASTOS_ALL : GASTOS_CACHE;
   const cuotasMap = {};
-  GASTOS_CACHE.forEach(g=>{
+  allGCuotas.forEach(g=>{
     const ca=parseInt(g.cuota_actual||g.raw?.cuota_actual||0);
     const ct=parseInt(g.total_cuotas||g.raw?.total_cuotas||0);
     if(!ca||!ct||ca>=ct) return;
     const nm = (g.desc||g.descripcion||'').replace(/\s*\(cuota.*\)/i,'').trim();
     if(!cuotasMap[nm]||ca>cuotasMap[nm].ca){
-      // Calcular fecha estimada de última cuota
       const p=String(g.fecha||'').split('/');
       const fBase = p.length>=3 ? new Date(parseInt(p[2]),parseInt(p[1])-1,1) : new Date();
       const fFin = new Date(fBase.getFullYear(),fBase.getMonth()+(ct-ca),1);
@@ -3958,8 +3969,9 @@ function renderDashBalanceProj(){
     const k=p[2]+'-'+p[1].padStart(2,'0');
     ingPorMes[k]=(ingPorMes[k]||0)+parseFloat(i.monto||0);
   });
-  // Últimos 3 meses con datos
-  const ingVals=Object.entries(ingPorMes).sort((a,b)=>a[0]>b[0]?-1:1).slice(0,3).map(x=>x[1]);
+  // Últimos 3 meses COMPLETOS para el promedio
+  const keyNowBal = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+  const ingVals=Object.entries(ingPorMes).filter(([k])=>k<keyNowBal).sort((a,b)=>a[0]>b[0]?-1:1).slice(0,3).map(x=>x[1]);
   const ingProm=ingVals.length?Math.round(ingVals.reduce((a,b)=>a+b,0)/ingVals.length):0;
 
   // Cuotas futuras por mes
