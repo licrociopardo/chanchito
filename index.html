@@ -1808,6 +1808,20 @@ function updateDashboardMetrics(){
     }
   });
   const cuotasMensuales = Object.values(cuotasGrupos).reduce((s,g)=>s+g.monto,0);
+  // Panel debug visible
+  const _debugRows = allGastosForCuotas.filter(g=>{const ca=parseInt(g.cuota_actual||0),ct=parseInt(g.total_cuotas||0);return ca>0&&ct>0&&ca<ct;}).map(g=>{
+    const p=String(g.fecha||'').split('/');
+    const mesBase=p.length>=3?new Date(parseInt(p[2]),parseInt(p[1])-1,1):null;
+    const ca=parseInt(g.cuota_actual||0),ct=parseInt(g.total_cuotas||0);
+    const fUltima=mesBase?new Date(mesBase.getFullYear(),mesBase.getMonth()+(ct-ca),1):null;
+    const pasa=fUltima?fUltima>=mesActualDash:false;
+    return {desc:g.desc||g.id,ca,ct,fecha:g.fecha,monto:g.monto,fUltimaStr:fUltima?fUltima.toISOString().slice(0,7):'?',pasa};
+  });
+  let _dbPanel=document.getElementById('_debug-cuotas');
+  if(!_dbPanel){_dbPanel=document.createElement('div');_dbPanel.id='_debug-cuotas';_dbPanel.style.cssText='position:fixed;bottom:10px;right:10px;background:#fff;border:2px solid red;border-radius:8px;padding:12px;font-size:11px;font-family:monospace;z-index:9999;max-width:600px;max-height:400px;overflow:auto';document.body.appendChild(_dbPanel);}
+  _dbPanel.innerHTML='<b>DEBUG CUOTAS (mesActual: '+mesActualDash.toISOString().slice(0,7)+')</b><br>'+
+    _debugRows.map(r=>'<span style="color:'+(r.pasa?'green':'red')+'">'+(r.pasa?'✓':'✗')+' '+r.desc+' ('+r.ca+'/'+r.ct+') fecha:'+r.fecha+' fUltima:'+r.fUltimaStr+' monto:'+r.monto+'</span>').join('<br>')+
+    '<br><b>GRUPOS QUE PASAN: '+JSON.stringify(Object.entries(cuotasGrupos).map(([k,v])=>k+' $'+v.monto))+'</b><br><b>TOTAL: $'+cuotasMensuales+'</b>';
 
   // Balance: si no hay ingresos y hay gastos → déficit
   const balanceDisplay = balance < 0 || (totalGastos > 0 && totalIngresos === 0) ? -Math.abs(totalGastos) : balance;
